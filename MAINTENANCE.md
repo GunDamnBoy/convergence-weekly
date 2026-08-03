@@ -51,7 +51,15 @@ git push -u origin main
 
 ## 3. 排程 prompt（整份取代用）
 
-> 建立方式：`create_trigger`，cron **`30 13 * * 0`**（UTC）＝ 台北每週日 21:30。
+> 建立方式：`mcp__scheduled-tasks__create_scheduled_task`，taskId `convergence-weekly`，
+> cron **`30 21 * * 0`**。
+>
+> ⚠️ **這個 cron 是本地時間（台北），不是 UTC。**
+> v0.4 之前文件把它寫成 UTC 的 13:30 版本，那是錯的——照抄會排到台北**週一下午**。
+> 可用既有排程印證：`advisory-dashboard-daily` 的時刻欄位是「7 點 30 分」，
+> 對應的就是台北 07:30 而非 UTC 07:30。
+> （這裡刻意不寫出那個錯誤的 cron 字串，因為 `healthcheck.py` 會把文件裡出現的
+> 每一個 cron 樣式抓出來比對，多一個就會 FAIL。）
 > 每次觸發都是全新 session，所以 prompt 必須完整、獨立、不依賴任何對話記憶。
 
 ```
@@ -182,7 +190,8 @@ git push -u origin main
 ## 5. 待辦與觀察中
 
 - [x] 首次上架（見第 1 節）——已上架，本機與遠端同步
-- [x] 建立排程任務（cron `30 13 * * 0` UTC）——2026-08-03 v0.4 巡檢時建立
+- [x] 建立排程任務（taskId `convergence-weekly`，cron `30 21 * * 0` 本地時間）
+      ——2026-08-03 v0.4 巡檢時建立
 - [ ] **確認 `~/.dashpush/auto-push.sh` 的 repo 清單有沒有 `convergence-weekly`。**
       v0.4 巡檢時在沙箱看不到該檔（healthcheck 出 WARN），未能確認。
       驗證方法：改一個字，看 180 秒內會不會自己推上去。
