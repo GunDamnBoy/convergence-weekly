@@ -37,3 +37,4 @@ MAINTENANCE.md      維護說明、排程 prompt、事故紀錄
 ```
 
 規格見 [AGENT_BRIEF.md](AGENT_BRIEF.md)，維護見 [MAINTENANCE.md](MAINTENANCE.md)。
+
