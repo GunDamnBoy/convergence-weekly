@@ -43,6 +43,12 @@ git push -u origin main
    `build_issue.py` 都要跟著改——**這三處是一組**
 5. 事故經過與被否決的選項寫本檔第 6 節
 
+⚠️ **維護時讀不到實際生效的 prompt。**
+排程任務的內容存在 `~/Documents/Claude/Scheduled/convergence-weekly/SKILL.md`，
+那是受保護目錄，Cowork 掛不進來，所以**無法對本檔第 3 節與實際生效內容做逐字 diff**。
+唯一的防線是紀律：**改 prompt 一定要在同一輪同時改本檔第 3 節與 `update_scheduled_task`，
+兩邊貼同一份文字。** 只改一邊，下次維護沒有任何工具查得出來。
+
 **改完務必自問一次：這條規則排程執行時讀得到嗎？**
 排程每次觸發都是全新 session，只讀 `AGENT_BRIEF.md` 與 prompt 本身。
 只寫在本檔（維護文件）的規則，排程永遠不會知道——v0.4 就是這樣掉了三條關鍵規則。
@@ -131,6 +137,8 @@ git push -u origin main
   · 不要為了湊滿章節而硬掰。真的沒有背離就寫「本週三庫高度一致，這本身是訊號」。
   · 不要重述新聞。每一條都要有「因為三庫都／只有一庫講，所以⋯⋯」這層推論。
   · 數字打架就寫出來。三庫對同一數字有出入時，把出入本身當成發現，不要挑一個用。
+  · body 類欄位允許行內 HTML（verdict[]、cols[].body、call.body、list[].body、
+    callout.body、watch[]、feedback[]、gaps[]、evidence[].t 可用 <b>/<code>/<br>）。
   · 記錄資料缺口：缺天、各庫 index.json 的 updatedLabel 過期、指標 asof 落後、卡片數異常，
     這四項每期都要查，一律寫進單期 JSON 的 gaps 欄位
     （不是只在交付訊息裡講——gaps 是 verify.py 的必備欄位，漏了會 FAIL）。
