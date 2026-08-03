@@ -209,9 +209,10 @@ git push -u origin main
 - [x] 首次上架（見第 1 節）——已上架，本機與遠端同步
 - [x] 建立排程任務（taskId `convergence-weekly`，cron `30 21 * * 0` 本地時間）
       ——2026-08-03 v0.4 巡檢時建立
-- [ ] **確認 `~/.dashpush/auto-push.sh` 的 repo 清單有沒有 `convergence-weekly`。**
-      v0.4 巡檢時在沙箱看不到該檔（healthcheck 出 WARN），未能確認。
-      驗證方法：改一個字，看 180 秒內會不會自己推上去。
+- [x] **推送鏈確認可用。** v0.4 巡檢期間本機 HEAD 自己從 `8f2555b` → `139bb93` → `0aa8dd0`，
+      證明 `com.kenny.dashpush` 的清單裡有這個 repo。
+      （`healthcheck.py` 仍會對 `~/.dashpush/auto-push.sh` 出 WARN——那只是沙箱看不到該檔，
+      不是故障。要消掉這個 WARN 得另外授權 `~/.dashpush` 資料夾。）
 - [ ] 投顧知識庫只保留 3 天封存檔——確認是設計還是異常；會直接影響本系統樣本厚度
 - [ ] 觀察：累積 4 期後檢視「跨期趨勢」五格是否選對了指標
       （目前為 composite / stage / D4 / D5 / 台股熱度）
