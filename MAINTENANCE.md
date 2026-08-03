@@ -76,7 +76,10 @@ git push -u origin main
   讀 site/AGENT_BRIEF.md（全部）與 site/data/index.json
   （看上一期是第幾期、講了什麼，並抄下上一期的 watch 清單，第 4 步要驗收）。
   敘事側取過去 7 個日曆天；量化側取 bub/data.json 的 history 全部，
-  「本期變動」以 history 第一筆對現值計算。
+  「本期變動」＝頂層 dims 現值 − history 第一筆（是對現值，不是對 history 最後一筆；
+  監控庫盤後更新時 history 會落後一格，寫錯會被 verify.py 判 FAIL）。
+  三庫日期不會對齊——投顧有週日更新、節目只有工作日、監控只有交易日。
+  這是正常的，不要試圖對齊。
   缺天正常，如實記下實際涵蓋範圍寫進 range（range 記錄實際拿到的，不是 7 天窗口本身）。
   ⚠️ 樣本不足的處置：若投顧側 < 3 天或節目側 < 2 天，必須在 about.run 註明樣本偏薄，
      且共振判定要保守（樣本薄時容易把巧合當共振）。
@@ -146,6 +149,9 @@ git push -u origin main
     python3 site/verify.py site/data/YYYY-MM-DD.json \
       --adv adv.txt --pod pod.txt --bub bub/data.json
   ⚠️ --bub 吃的是原始 bub/data.json，不是第 2 步壓縮出來的 bub.txt。
+  ⚠️ 三個路徑參數一個都不能省：省略時該批檢查會被跳過，而跳過不算 FAIL。
+     「沒有 FAIL」不等於「檢查有跑」。缺參數時 verify.py 會回傳 exit 2 並印黃燈，
+     看到黃燈就是還不能發布。
   它檢查六件事：必備欄位與章節數、index.json 量化快照、敘事側逐字回查（含 list[]）、
   量化側欄位名存在性、六維現值與變動 vs history、量化佐證未取自 events。
   任何一項 FAIL 就不要發布——回去修正該條引用或刪除它，重跑到全部通過。
@@ -153,6 +159,9 @@ git push -u origin main
 
 第 7 步：發布與交付
   用 device_commit_files 寫回本機 ~/convergence-weekly，交給 com.kenny.dashpush 自動推送。
+  ⚠️ 不要對本機的 ~/convergence-weekly 跑任何 git 指令，git status 也不行。
+     com.kenny.dashpush 每 180 秒會自己 commit＋push，你跑 git 會留下 .git/index.lock
+     把它擋住，之後就再也推不上去。沙箱裡 clone 出來的複本不受此限。
   退路：若連不到本機，改用 SendUserFile 附上本期 JSON 與 index.json，
         並明確告知使用者需要手動放進 repo——不要靜靜地跳過發布。
   在訊息裡寫三行：本期最重要的判斷、上一期 watch 清單的驗收結果、發現的資料缺口。

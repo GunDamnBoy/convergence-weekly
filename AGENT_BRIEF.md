@@ -30,7 +30,7 @@
 如果某一期讀起來像「本週新聞回顧」，那就是做失敗了。
 
 > ⚠️ **訊號類型 ≠ 章節結構。** 上表是四種**訊號類型**，不是四個章節。
-> 章節結構固定為六節（見第 3.1 節），其中「共識裂縫」沒有專屬章節——
+> 章節結構固定為六節（見第 3.0 節），其中「共識裂縫」沒有專屬章節——
 > 它是可以掛在任何一節某條 item 上的 `tags` 標籤。
 > 理由：裂縫不是每週都有，硬留一個常常空著的章節會逼出湊數的內容。
 > 反過來，章節裡有一節是「台股」，它不是訊號類型而是**閱讀切面**——
@@ -53,7 +53,7 @@ https://github.com/GunDamnBoy/ai-bubble-monitor          → data.json（單檔�
 > 這與既有兩套系統不同（那兩套要讀本機逐字稿／要跑抓取），維護負擔低很多。
 > **但發布這一段仍然依賴本機**：用 `device_commit_files` 寫回 `~/convergence-weekly`，
 > 再由既有的 launchd agent `com.kenny.dashpush` 每 180 秒 push 上去。
-> 連不到本機時的退路見第 5 節第 5 步。
+> 連不到本機時的退路見第 4 節第 7 步。
 
 ### 1.1 三庫的資料結構
 
@@ -94,7 +94,9 @@ events[{d,t,url}], history[{date,composite,dims{},tw}], charts{}, params{}
 - 每週日台北 **21:30** 執行（排在投顧知識庫週日夜間更新之後，確保拿得到當週最新一天）。
   排程 cron `30 21 * * 0`，**本地時間、非 UTC**（詳見 `MAINTENANCE.md` 第 3 節的警語）。
 - **敘事側**取過去 7 個日曆天；**量化側**取 `history` 全部（約 15 個交易日），
-  「本期變動」以 history 第一筆對最後一筆計算。
+  「本期變動」＝**頂層 `dims` 現值 − `history` 第一筆**。
+  > 注意是「對**現值**」，不是「對 `history` 最後一筆」。監控庫盤後更新時 `history`
+  > 會落後頂層一格，兩者不相等。`verify.py` 用的是現值，寫錯會被判 FAIL。
 - 三庫日期不會對齊——投顧有週日更新、節目只有工作日、監控只有交易日。
   **這是正常的，不要試圖對齊。** 如實記錄實際涵蓋範圍，寫進 `range`。
   > `range` 記錄的是**實際拿到的涵蓋範圍**，不是上面那個 7 天窗口。
@@ -273,10 +275,15 @@ convergence-weekly/
 ```bash
 python3 verify.py data/YYYY-MM-DD.json \
   --adv /path/adv.txt --pod /path/pod.txt --bub /path/bub/data.json
+# --index 可省略，預設取 issue 同目錄的 index.json
 ```
 
 > ⚠️ `--bub` 吃的是**原始 `bub/data.json`**，不是第 2 步壓縮出來的 `bub.txt`。
 > 敘事側才是 substring 回查；量化側做的是欄位名存在性與數值核對。
+>
+> ⚠️ **三個路徑參數一個都不能省。** 省略時該項檢查會被跳過，
+> 而跳過的項目不算 FAIL——最後仍會印「✅ 全部通過，可以發布」。
+> 「沒有 FAIL」不等於「檢查有跑」。`verify.py` 對此會出 warn，看到就當成錯誤處理。
 
 它檢查六件事：必備欄位與章節數（恰 4 節）、`index.json` 量化快照、
 敘事側逐字回查（含 `list[]`）、量化側欄位名存在性、六維現值與變動 vs `history`、
@@ -289,6 +296,10 @@ python3 verify.py data/YYYY-MM-DD.json \
 
 1. 用 `device_commit_files` 寫回本機 `~/convergence-weekly`，
    交給 `com.kenny.dashpush`（每 180 秒）自動推送
+   > ⚠️ **不要對本機的 `~/convergence-weekly` 跑任何 git 指令，`git status` 也不行。**
+   > `com.kenny.dashpush` 每 180 秒會自己 commit＋push，你跑 git 會留下
+   > `.git/index.lock` 把它擋住，之後就再也推不上去。
+   > 沙箱裡 clone 出來的複本要怎麼跑 git 都可以，這條只針對本機那一份。
 2. **連不到本機時的退路**：改用 `SendUserFile` 附上本期 JSON 與 `index.json`，
    並明確告知使用者需要手動放進 repo——不要靜靜地跳過發布
 3. 驗證線上狀態時**網址一定要帶 cache-buster**，

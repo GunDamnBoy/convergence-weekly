@@ -45,7 +45,7 @@ def main():
     ap.add_argument('--index', default=None)
     a = ap.parse_args()
 
-    fails, warns = [], []
+    fails, warns, skipped = [], [], []
     d = json.load(open(a.issue, encoding='utf-8'))
     idx_path = a.index or os.path.join(os.path.dirname(a.issue), 'index.json')
     idx = json.load(open(idx_path, encoding='utf-8'))
@@ -90,6 +90,7 @@ def main():
     lst_narr = [l for l in lst if '監控' not in str(l.get('src', ''))]
     if not corpus:
         warns.append("未提供 --adv/--pod，跳過敘事側回查")
+        skipped.append("敘事側逐字回查")
     else:
         bad = []
         for e in narr:
@@ -110,6 +111,7 @@ def main():
     quant_ev = [e for _, e in ev if e.get('s') == '監控']
     if not (a.bub and os.path.exists(a.bub)):
         warns.append("未提供 --bub，跳過量化側檢查")
+        skipped.append("量化側存在性／六維變動／events 檢查")
     else:
         b = json.load(open(a.bub, encoding='utf-8'))
         # 合法的量化欄位名＝21 項指標 id ＋ 台股項目 id ＋ 頂層量化欄位（stage / composite
@@ -171,6 +173,12 @@ def main():
         print(f"\n❌ FAILED（{len(fails)}）")
         for f in fails: print("   -", f)
         sys.exit(1)
+    # 缺參數會讓整批檢查被跳過，而跳過不算 FAIL——
+    # 「沒有 FAIL」不等於「檢查有跑」，所以這裡不給綠燈。
+    if skipped:
+        print(f"\n⚠️  沒有 FAIL，但有 {len(skipped)} 批檢查被跳過：{'、'.join(skipped)}")
+        print("    這不是通過。補上缺的參數重跑後才能發布。")
+        sys.exit(2)
     print("\n✅ 全部通過，可以發布")
 
 if __name__ == '__main__':
