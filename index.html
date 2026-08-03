@@ -287,6 +287,10 @@ function renderIssue(d, index){
     ${renderQuant(d.quant)}
     <div class="panel">${renderTrend(index)}</div>`;
 
+  // 「零」「五」「六」三節由外殼寫死（量化底盤／下週該盯什麼／回饋），
+  // 中間的「一～四」全部由 d.sections 驅動，編號寫在各節自己的 title 字串裡。
+  // 也就是說：sections 必須恰為 4 節、且 title 自帶「一 ·」～「四 ·」。
+  // 要增減章節數，schema（AGENT_BRIEF 3.1）、build_issue.py、這裡三處要一起改。
   h += d.sections.map(s => `<h2 class="sec">${s.title}</h2>` +
     (s.lede ? `<p class="lede">${s.lede}</p>` : '<div style="height:14px"></div>') +
     s.items.map(renderItem).join('')).join('');
@@ -305,7 +309,7 @@ function renderIssue(d, index){
       <b>執行紀錄</b>：${d.about.run}
       ${d.gaps && d.gaps.length ? `<div class="warn"><b>本期發現的資料缺口</b>
         <ul>${d.gaps.map(g => `<li>${g}</li>`).join('')}</ul></div>` : ''}
-      <br>每週日 21:30（台北）更新　·　歷史全部保留　·　最後更新 ${index.updatedLabel}
+      <br>排程：每週日 21:30（台北）　·　歷史全部保留　·　本期發布 ${index.updatedLabel}
     </footer>`;
   return h;
 }

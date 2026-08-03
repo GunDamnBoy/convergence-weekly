@@ -121,7 +121,7 @@ issue = {
           ],
           "evidence": [
             {"d":"07/30","s":"監控","t":"指標 <code>hyoas</code> = 2.84%、zone green、score 25.8、三個月 −14bp"},
-            {"d":"08/03","s":"監控","t":"階段模型 current 2.6，note：「點亮 2.5／6（本週無新增點亮）……均未觸發違約或 HY 利差趨勢性走闊」"},
+            {"d":"08/03","s":"監控","t":"指標 <code>stage</code> current 2.6，note：「點亮 2.5／6（本週無新增點亮）……均未觸發違約或 HY 利差趨勢性走闊」"},
             {"d":"08/03","s":"投顧","t":"(nikkei/AI 融資) AI 融資出現壓力：資料中心債利差自 2.25 走闊到 2.88 個百分點，科技將成美債市最大板塊"},
             {"d":"07/30","s":"節目","t":"Bloomberg Surveillance｜Kay Haigh（GSAM）：1.4 兆美元的新供給，是長端的結構性壓力"}
           ],
@@ -233,7 +233,8 @@ issue = {
   ],
 
   "about": {
-    "run": "原型期。三庫皆以 git clone --depth 1 取得公開 repo 後於本地解析；敘事側佐證逐字取自卡片標題、集數標題或當日交叉觀察，量化側數值直接取自 data.json 指標欄位。本期已用程式對 40 條佐證做過 substring 回查，1 條引用標籤不精確（把當日交叉觀察誤標為集數標題）已修正。投顧知識庫僅取得 3 天資料，樣本偏薄，共振判定已據此保守處理。",
+    # {NEV}/{NLIST} 由 main() 依實際結構填入——寫死的條數一定會跟內容脫節
+    "run": "原型期。三庫皆以 git clone --depth 1 取得公開 repo 後於本地解析；敘事側佐證逐字取自卡片標題、集數標題或當日交叉觀察，量化側數值直接取自 data.json 指標欄位。本期共 {NEV} 條 evidence 與 {NLIST} 條單邊訊號，已用 verify.py 做過 substring 回查，1 條引用標籤不精確（把當日交叉觀察誤標為集數標題）已修正。投顧知識庫僅取得 3 天資料，樣本偏薄，共振判定已據此保守處理。",
     "method": "程式壓縮 → 兩個平行子代理各讀一個敘事庫（互相不知情）→ 主線併入量化底盤合成 → 逐字回查驗證"
   }
 }
@@ -241,9 +242,22 @@ issue = {
 
 def main():
     p = os.path.join(DATA, f"{DATE}.json")
+
+    # 歷史全部保留是這套系統的核心：既有的單期檔永不改寫。
+    # 這道閘門存在的理由是本檔會被當成範例反覆閱讀，很容易被順手執行。
+    if os.path.exists(p) and "--force" not in sys.argv:
+        sys.exit(f"拒絕覆寫既有單期檔 {p}\n"
+                 f"歷史全部保留是本系統的核心。真的要重建請加 --force，"
+                 f"並先想清楚為什麼要改寫已發布的一期。")
+
+    # 佐證條數由結構算出來，不要寫死——寫死的數字一定會跟內容脫節
+    nev = sum(len(it.get("evidence", [])) for s in issue["sections"] for it in s["items"])
+    nlist = sum(len(it.get("list", [])) for s in issue["sections"] for it in s["items"])
+    issue["about"]["run"] = issue["about"]["run"].format(NEV=nev, NLIST=nlist)
+
     with io.open(p, "w", encoding="utf-8") as f:
         json.dump(issue, f, ensure_ascii=False, indent=1)
-    print("wrote", p, os.path.getsize(p), "bytes")
+    print("wrote", p, os.path.getsize(p), "bytes", f"| evidence {nev} / list {nlist}")
 
     # --- index.json：站台外殼靠它做期別切換與跨期趨勢 ---
     idx_path = os.path.join(DATA, "index.json")
