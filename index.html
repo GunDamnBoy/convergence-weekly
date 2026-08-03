@@ -125,7 +125,7 @@ table.bars td.val b{color:var(--ink);font-size:14.5px}
 table.bars tr:hover .fill{background:var(--red-d)}
 
 /* trend small multiples */
-.sm{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:8px}
+.sm{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:14px;margin-top:8px}
 @media(max-width:640px){.sm{grid-template-columns:repeat(2,1fr)}}
 .sm figure{margin:0;border:1px solid var(--line);border-radius:6px;padding:12px 13px}
 .sm figcaption{font-size:11.5px;color:var(--lite);margin:0 0 2px;letter-spacing:.03em}
@@ -191,8 +191,11 @@ function renderTrend(index){
       <div class="csub">每一期的量化底盤都會被保留，累積兩期以上後這裡會顯示走勢。</div>
       <div class="empty">目前僅 ${iss.length} 期。下一期發布後即開始繪製。</div>`;
   }
+  // 這五格的資料來源全部是 index.json 的量化快照。
+  // 每期都必須寫齊 composite / dims / twHeat / stage，漏一個這裡就靜靜地少一條線。
   const defs = [
     {k:'composite', n:'綜合泡沫溫度', get:i => i.composite},
+    {k:'stage', n:'泡沫階段', get:i => i.stage},
     {k:'d4', n:'融資與信用', get:i => i.dims && i.dims.D4},
     {k:'d5', n:'市場動能與情緒', get:i => i.dims && i.dims.D5},
     {k:'tw', n:'台股熱度', get:i => i.twHeat}
@@ -216,6 +219,8 @@ function renderTrend(index){
 function renderQuant(q){
   if(!q) return '';
   const rows = q.dims.map(d => {
+    // 最小寬度是無條件的安全網（值為 0 時長條不會整條消失）；
+    // zeroish 只負責把長條改成灰色，表示「這一維目前接近 0，不要當成訊號」。
     const w = Math.max(d.v, 1.2);
     return `<tr title="${d.name} ${d.v}，本期變動 ${fmtDelta(d.delta)}">
       <td class="lab">${d.emph ? '<b>'+d.name+'</b>' : d.name}
@@ -231,7 +236,8 @@ function renderQuant(q){
       <span class="z">${q.zone}</span>
       <span class="dlt">${q.note}</span>
     </div>
-    <div class="cap">綜合泡沫溫度．六維加權．泡沫階段 ${q.stage.current}（${q.stage.label}，點亮 ${q.stage.lit}，${q.stage.delta}）</div>
+    <div class="cap">綜合泡沫溫度．六維加權．泡沫階段 ${q.stage.current}（${q.stage.label}，點亮 ${q.stage.lit}，${q.stage.delta}）${
+      typeof q.twHeat === 'number' ? `．台股熱度 <b>${q.twHeat.toFixed(1)}</b>` : ''}</div>
     <div class="ctitle">六個維度</div>
     <div class="csub">數值為 0–100 熱度，越高越熱。長條長度即為數值；右欄為本期變動。</div>
     <table class="bars">${rows}</table>
