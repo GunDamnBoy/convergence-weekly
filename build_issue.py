@@ -7,7 +7,7 @@
 每週的排程任務會自己組出等價的資料結構——這個檔案是「schema 的可執行文件」，
 改 schema 時請同步改這裡與 AGENT_BRIEF.md 第 3 節。
 """
-import json, os, io
+import json, os, io, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "data")
@@ -269,7 +269,7 @@ def main():
         "date": DATE,
         "issue": ISSUE,
         "label": issue["label"],
-        "short": "8/3",
+        "short": f"{int(DATE[5:7])}/{int(DATE[8:10])}",
         "headline": issue["headline"],
         "composite": issue["quant"]["composite"],
         "dims": {d["id"]: d["v"] for d in issue["quant"]["dims"]},
@@ -278,6 +278,8 @@ def main():
         "file": f"data/{DATE}.json"
     })
     issues.sort(key=lambda x: x["date"], reverse=True)
+    # 第 001 期是手動在 18:00 產出的，所以這裡寫死 18:00——它記錄的是「本期實際發布時間」，
+    # 不是排程時刻（排程是每週日 21:30）。每週的排程任務要用當下的實際時間填這兩欄。
     idx = {
         "updated": "2026-08-03T18:00:00+08:00",
         "updatedLabel": "8/3 18:00",

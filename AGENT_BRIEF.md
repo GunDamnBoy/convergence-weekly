@@ -1,6 +1,8 @@
 # 主題匯流訊號報 · AGENT_BRIEF
 
-> **這份是規格。** 流程骨架在排程任務的 prompt 裡（見 `MAINTENANCE.md` 第 3 節）。
+> **這份是規格，含完整的執行管線定義（第 4 節）。**
+> 排程任務的 prompt 是這份管線的**執行骨架**——只放順序與分支判斷，
+> 細節（門檻、字數、格式、禁令）一律回這份查。見 `MAINTENANCE.md` 第 3 節。
 > 兩份是一組，改了規格就要同步改排程 prompt——這是既有兩套系統歷史上最常犯的錯。
 
 ---
@@ -27,6 +29,13 @@
 **產出不是資訊，是訊號的合成。**
 如果某一期讀起來像「本週新聞回顧」，那就是做失敗了。
 
+> ⚠️ **訊號類型 ≠ 章節結構。** 上表是四種**訊號類型**，不是四個章節。
+> 章節結構固定為六節（見第 3.1 節），其中「共識裂縫」沒有專屬章節——
+> 它是可以掛在任何一節某條 item 上的 `tags` 標籤。
+> 理由：裂縫不是每週都有，硬留一個常常空著的章節會逼出湊數的內容。
+> 反過來，章節裡有一節是「台股」，它不是訊號類型而是**閱讀切面**——
+> 使用者的實際部位在台股，所以不管訊號屬於哪一類，台股相關的都額外集中講一次。
+
 ---
 
 ## 1. 資料來源
@@ -40,9 +49,11 @@ https://github.com/GunDamnBoy/podcast-knowledge-digest   → data/YYYY-MM-DD.jso
 https://github.com/GunDamnBoy/ai-bubble-monitor          → data.json（單檔，含 15 天 history）
 ```
 
-> **架構優勢：資料全部公開，本系統不需要連上本機、不需要 launchd。**
-> 這與既有兩套系統不同，維護負擔低很多。唯一需要本機的環節是最後的 git push
-> （由既有的 `com.kenny.dashpush` 每 180 秒自動處理）。
+> **架構優勢：取資料這一段全部公開，不需要本機、不需要自建轉錄管線。**
+> 這與既有兩套系統不同（那兩套要讀本機逐字稿／要跑抓取），維護負擔低很多。
+> **但發布這一段仍然依賴本機**：用 `device_commit_files` 寫回 `~/convergence-weekly`，
+> 再由既有的 launchd agent `com.kenny.dashpush` 每 180 秒 push 上去。
+> 連不到本機時的退路見第 5 節第 5 步。
 
 ### 1.1 三庫的資料結構
 
@@ -51,6 +62,7 @@ https://github.com/GunDamnBoy/ai-bubble-monitor          → data.json（單檔�
 date, weekday, stamp, headline, keptDates, cards(數量), overview{snap,focus}, essay,
 sections[{title,en,id,intro,groups[{label,accent,cards[]}]}], about{run}
 card: {src, tag, tagcls, date, deep(bool), title, body[], bullets[], url, tone}
+index.json: updated, updatedLabel, count, days[]          ← 健康度哨兵要看這兩欄
 ```
 
 **節目知識庫**
@@ -58,7 +70,11 @@ card: {src, tag, tagcls, date, deep(bool), title, body[], bullets[], url, tone}
 date, label, generatedAt, crossCut{title,intro,points[{title,body}]}, postscript,
 episodes[{id,showKey,show,title,meta,published,hosts,guest,source,url,chars,
           summary,takeaways,sections,quotes}]
+index.json: updated, updatedLabel, count, days[]          ← 同上
 ```
+> 單期檔本身沒有 `updated` / `updatedLabel`，那兩欄在各庫的 `index.json`。
+> 第 5 節「記錄資料缺口」要檢查的就是這兩欄有沒有停住——實測第 001 期就抓到節目庫
+> 連兩次執行沒更新 `updated`，前端顯示時間是錯的。
 ⚠️ `takeaways` / `sections` / `meta` 是**字串化的 Python list**，要用 `ast.literal_eval`，不是標準 JSON。
 
 **AI 泡沫監控**（單一 `data.json`）
@@ -79,7 +95,9 @@ events[{d,t,url}], history[{date,composite,dims{},tw}], charts{}, params{}
 - **敘事側**取過去 7 個日曆天；**量化側**取 `history` 全部（約 15 個交易日），
   「本期變動」以 history 第一筆對最後一筆計算。
 - 三庫日期不會對齊——投顧有週日更新、節目只有工作日、監控只有交易日。
-  **這是正常的，不要試圖對齊。** 如實記錄實際涵蓋範圍，寫進 `range` 與頁尾。
+  **這是正常的，不要試圖對齊。** 如實記錄實際涵蓋範圍，寫進 `range`。
+  > `range` 記錄的是**實際拿到的涵蓋範圍**，不是上面那個 7 天窗口。
+  > 兩者不相等是正常的（第 001 期窗口 7 天、實際敘事側只涵蓋 6 天），不要為了對齊窗口而虛報。
 - 缺天不是失敗。但若投顧側 < 3 天或節目側 < 2 天，必須在 `about.run` 註明樣本偏薄，
   且**共振判定要保守**（樣本薄時容易把巧合當共振）。
 
@@ -95,11 +113,32 @@ convergence-weekly/
 ├─ data/
 │   ├─ index.json        ← 期別清單 ＋ 每期量化快照（跨期趨勢圖靠它）
 │   └─ YYYY-MM-DD.json   ← 每期一檔，永不刪除、永不改寫
-├─ build_issue.py        ← schema 的可執行文件（第 001 期範例）
+├─ build_issue.py        ← schema 的可執行文件（第 001 期範例）。有防覆寫閘門，
+│                          既有單期檔存在時會拒跑，要重建得加 --force
+├─ verify.py             ← **發布前檢查**。每期必跑，不要自己重寫一支
+├─ healthcheck.py        ← 維護用的唯讀健康檢查（跑在維護時，不在產出流程裡）
 ├─ AGENT_BRIEF.md        ← 本檔（規格）
 ├─ MAINTENANCE.md        ← 維護說明、排程 prompt、事故紀錄
 └─ README.md
 ```
+
+### 3.0 章節結構（固定六節）
+
+外殼把「零／五／六」寫死，中間的「一～四」由 `sections` 驅動，
+**編號寫在各節自己的 `title` 字串裡**。因此 `sections` 必須恰為 4 節，`verify.py` 會擋。
+
+| # | id | 節名 | 規則 |
+|---|---|---|---|
+| 零 | —（外殼寫死） | 量化底盤 | 不是新聞，是這段期間的客觀狀態。由 `quant` 驅動 |
+| 一 | `resonance` | 三方共振 | 三個獨立來源同時指向。量化側佐證**不得取自 `events`** |
+| 二 | `divergence` | 關鍵背離 | **必須給裁判方法**：用什麼數字、跨過什麼門檻就知道哪一邊對 |
+| 三 | `taiwan` | 台股 | 閱讀切面而非訊號類型。三庫講台股時常在不同層次，把層次差寫出來 |
+| 四 | `single` | 單邊訊號 | **只標記不判斷**。用 `list[]` 而非 `evidence[]`，但一樣要逐字 |
+| 五 | —（外殼寫死） | 下週該盯什麼 | 由 `watch[]` 驅動。每條可觀察、可證偽 |
+| 六 | —（外殼寫死） | 回饋給來源系統 | 由 `feedback[]` 驅動。選填，沒有就不出現 |
+
+「共識裂縫」不是章節，是掛在 item 上的 `tags` 標籤（見第 0 節）。
+要增減章節數，**本節、`build_issue.py`、`index.html` 三處要一起改**。
 
 ### 3.1 單期 JSON schema
 
@@ -116,7 +155,8 @@ convergence-weekly/
     "twHeat":57.3,
     "dims":[{"id":"D1","name":"...","w":"25%","v":58.2,"delta":-4.3,"note":"...",
              "emph":true,      // 選填：這一維是本期重點，標題加粗
-             "zeroish":true}], // 選填：值接近 0，長條改用灰色並給最小寬度
+             "zeroish":true}], // 選填：值接近 0，長條改用灰色（＝「別當訊號讀」）。
+                               // 長條的最小寬度是外殼無條件的安全網，與本旗標無關
     "callout":{"h":"...","body":"..."}
   },
   "sections":[{"id":"resonance","title":"一 · ...","lede":"...","items":[ITEM]}],
@@ -141,6 +181,24 @@ convergence-weekly/
 }
 ```
 
+**兩個外殼沒明講、但 `verify.py` 硬依賴的慣例：**
+
+1. **量化佐證必須用 `<code>欄位名</code>` 包住欄位名。**
+   ```
+   ✅ "t":"指標 <code>hyoas</code> = 2.84%、zone green、score 25.8、三個月 −14bp"
+   ❌ "t":"高收益債利差偏低"
+   ```
+   `verify.py` 用 `<code>([a-z0-9_]+)</code>` 抓出 id 去 `bub` 裡查存在性。沒包 `<code>` 的那條
+   不會 FAIL，但檢查形同空轉，會出 warn。合法欄位名＝21 項指標 id ＋ 台股項目 id
+   ＋ `stage` / `composite` / `twheat` / `d1`–`d6`。
+
+2. **body 類欄位允許行內 HTML。** `verdict[]`、`cols[].body`、`call.body`、`list[].body`、
+   `callout.body`、`watch[]`、`feedback[]`、`gaps[]`、`evidence[].t` 都可用
+   `<b>` / `<code>` / `<br>`。逐字回查時 `verify.py` 會先剝標籤，所以加粗不影響驗證。
+
+3. **`list[]` 一樣要逐字回查。** 單邊訊號整節用 `list` 而非 `evidence`，
+   但「佐證一律逐字」是無條件的；`src` 裡含「監控」的視為量化側。
+
 ### 3.2 index.json
 
 ```jsonc
@@ -155,6 +213,11 @@ convergence-weekly/
 ```
 > **`composite` / `dims` / `twHeat` / `stage` 是跨期趨勢圖的唯一資料來源。**
 > 每期都必須寫，否則趨勢圖會斷。這也是本系統相對於「翻舊文章」的關鍵差異。
+>
+> 外殼目前畫五格：`composite`、`stage`、`dims.D4`、`dims.D5`、`twHeat`。
+> D1／D2／D3／D6 寫入但暫不繪製——保留是為了之後想換指標時有歷史可回溯，
+> **所以六維一定要寫齊**，不能只寫畫得到的那兩維。
+> 累積 4 期後檢視這五格選得對不對（見第 6 節待決事項）。
 
 ---
 
@@ -162,6 +225,7 @@ convergence-weekly/
 
 ### 第 1 步：取資料（程式）
 三庫 clone，取窗口內檔案。記錄實際涵蓋範圍。
+**同時 clone 本站台**，讀 `data/index.json` 看上一期是第幾期、以及上一期的 `watch[]` 清單。
 
 ### 第 2 步：壓縮成摘要層（程式，**不要把原始 JSON 讀進上下文**）
 - `adv.txt`：每卡一行 `{★if deep}({src}/{tag}) {title} || {bullets[0] 前 110 字}`，
@@ -190,15 +254,45 @@ convergence-weekly/
 **比對的順序有講究**：先把量化側的六維變動攤開，再拿兩份敘事主題去對。
 反過來做（先讀敘事再看指標）會讓你只找得到「指標支持敘事」的部分，找不到背離。
 
-### 第 5 步：寫檔與發布
-1. 寫 `data/YYYY-MM-DD.json`
-2. 更新 `data/index.json`（含該期量化快照）
-3. 交給既有的 `com.kenny.dashpush` 自動推送
-4. 驗證線上狀態時**網址一定要帶 cache-buster**，並確認 `updatedLabel` 而不只是 `issues[0].date`
+**驗收上一期的 `watch` 清單**：上期點名要盯的事，這期發生了嗎？跨過門檻了嗎？
+有結果的要寫進本期 `verdict`。這條回圈是本系統會不會累積判斷力的分水嶺——
+少了它，每期都是重新開始，`watch` 就只是好看的收尾。
 
-### 第 6 步：驗證（不可略過）
-寫 Python 檢查，把本期每一條 `evidence.t` 的關鍵子字串拿回 `adv.txt` / `pod.txt` / `bub.txt`
-做 substring 比對。任何一條找不到，就修正該條引用或刪除它，然後**重跑檢查直到全部通過**。
+### 第 5 步：寫檔
+
+1. 寫 `data/YYYY-MM-DD.json`（**不得改寫任何既有單期檔**）
+2. 更新 `data/index.json`（**含該期量化快照**：`composite` / `dims` 六維 / `twHeat` / `stage`）
+3. `updated` / `updatedLabel` 填**當下的實際發布時間**，不是排程時刻
+4. 不要動 `index.html`，除非 schema 真的變了（變了就是三處一起改）
+
+### 第 6 步：驗證（不可略過，跑在推送之前）
+
+**用 repo 內現成的 `verify.py`，不要自己重寫一支。**
+
+```bash
+python3 verify.py data/YYYY-MM-DD.json \
+  --adv /path/adv.txt --pod /path/pod.txt --bub /path/bub/data.json
+```
+
+> ⚠️ `--bub` 吃的是**原始 `bub/data.json`**，不是第 2 步壓縮出來的 `bub.txt`。
+> 敘事側才是 substring 回查；量化側做的是欄位名存在性與數值核對。
+
+它檢查六件事：必備欄位與章節數（恰 4 節）、`index.json` 量化快照、
+敘事側逐字回查（含 `list[]`）、量化側欄位名存在性、六維現值與變動 vs `history`、
+量化佐證未取自 `events`。
+
+**任何一項 FAIL 就不要發布。** 回去修正該條引用或刪除它，重跑到全部通過。
+若動過 `index.html`，另外抽出 `<script>` 區塊跑 `node --check`。
+
+### 第 7 步：發布與交付
+
+1. 用 `device_commit_files` 寫回本機 `~/convergence-weekly`，
+   交給 `com.kenny.dashpush`（每 180 秒）自動推送
+2. **連不到本機時的退路**：改用 `SendUserFile` 附上本期 JSON 與 `index.json`，
+   並明確告知使用者需要手動放進 repo——不要靜靜地跳過發布
+3. 驗證線上狀態時**網址一定要帶 cache-buster**，
+   並確認頁面上的**期別按鈕數量**與**跨期趨勢的點數**，而不只是看 `issues[0].date`
+4. 交付訊息寫三行：本期最重要的判斷、**上一期 `watch` 清單的驗收結果**、發現的資料缺口
 
 ---
 
@@ -206,16 +300,26 @@ convergence-weekly/
 
 - **佐證一律逐字。** 引卡片標題、集數標題、交叉觀察原文、指標欄位，不改寫、不潤飾。
   引自 `crossCut` 的內容要標明「當日交叉觀察，引 ○○節目」，**不可偽裝成集數標題**。
-- **量化佐證要附欄位名。** 寫 `指標 hyoas = 2.84%、zone green、score 25.8`，
+- **量化佐證要附欄位名，而且要用 `<code>` 包住。**
+  寫 `指標 <code>hyoas</code> = 2.84%、zone green、score 25.8`，
   不要寫「高收益債利差偏低」——前者可回查，後者不行。
+- **量化佐證只能取自 `indicators` / `dims` / `stage` / `tw`，絕對不能取自 `events`。**
+  `events` 欄位本身就是 Google News。拿它當量化側證據，等於讓**同一則新聞**
+  在投顧側算一次、在監控側再算一次，「三方共振」就是假的——
+  而共振是這套系統宣稱最強的訊號。`verify.py` 會 FAIL 這種情況。
+  > 那為什麼第 4 節第 2 步還要把 `events` 放進 `bub.txt`？
+  > 因為它有用：可以拿來**核對投顧側是不是漏了某條新聞**（哨兵用途）。
+  > 它是背景資訊，不是證據。
 - **背離那一節必須給出裁判方法。** 只說「兩邊不一致」沒有價值；
   要寫「用什麼數字、跨過什麼門檻，就知道哪一邊對」。
 - **不要為了湊滿章節而硬掰。** 某週真的沒有背離，就寫「本週三庫高度一致，這本身是訊號」。
 - **不要重述新聞。** 每一條都要包含「因為三庫都／只有一庫講，所以⋯⋯」這層推論。
 - **單邊訊號只標記不判斷。** 這是紀律，避免把未驗證的東西講成結論。
 - **數字打架就寫出來。** 三庫對同一數字有出入時，把出入本身當成發現，不要挑一個用。
-- **記錄資料缺口。** 缺天、`updatedLabel` 過期、指標 `asof` 落後、卡片數異常，
-  一律寫進 `gaps`——**這套系統順便是另外三套系統的健康度哨兵**。
+- **記錄資料缺口。** 缺天、各庫 `index.json` 的 `updatedLabel` 過期、指標 `asof` 落後、
+  卡片數異常，這四項每期都要查，**一律寫進單期 JSON 的 `gaps` 欄位**（不是只在交付訊息裡講；
+  `gaps` 是 `verify.py` 的必備欄位，漏了會 FAIL）——
+  **這套系統順便是另外三套系統的健康度哨兵**。
 - 全程繁體中文（台灣用語）。
 
 ---
