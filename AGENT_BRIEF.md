@@ -11,11 +11,21 @@
 
 三個知識庫目前各自獨立運作，沒有任何機制在做**跨庫比對**：
 
-| 庫 | 性質 | 單獨看能回答 |
-|---|---|---|
-| 投顧知識庫 | 敘事．每日．新聞 | 發生了什麼 |
-| 節目知識庫 | 敘事．每日．專業討論 | 聰明人在想什麼 |
-| AI 泡沫監控 | **量化**．每交易日．自動抓取 | 客觀狀態是什麼 |
+| 庫 | 性質 | 單獨看能回答 | 獨立性 |
+|---|---|---|---|
+| 投顧知識庫 | 敘事．每日．新聞 | 發生了什麼 | 獨立 |
+| 節目知識庫 | 敘事．每日．專業討論 | 聰明人在想什麼 | 獨立 |
+| AI 泡沫監控 | **量化**．每交易日．自動抓取 | 客觀狀態是什麼 | 獨立（不看新聞） |
+| 每日五圖 | **量化重製**．每日．自行製圖 | 敘事講的事，數字是多少 | **選題與投顧同源** |
+
+> ⚠️ **每日五圖不是第四個獨立來源。**
+> 它的 `about.upstream[0]` 就是 `advisory-knowledge-hub` 的當日檔——選題是從投顧庫挑出來的。
+> 所以「投顧在講 ＋ 圖表也在畫」**不構成兩票**，那是同一則新聞被數兩次，
+> 跟「量化佐證取自 `events`」是同一個坑，只是換了層皮。
+>
+> 它真正的價值在另一半：**圖表的數字是自行從 Yahoo／FRED 重製的**，
+> 所以它是**量化側的第二個裁判**——把敘事講的模糊說法逼成一個可回查的數字
+> （「油價崩了」→ 自 3/31 高點 −32.9%）。角色定位與計票規則見第 5 節。
 
 把三個疊起來才看得到的訊號有四種，這是本系統唯一的產出：
 
@@ -33,8 +43,9 @@
 > 章節結構固定為六節（見第 3.0 節），其中「共識裂縫」沒有專屬章節——
 > 它是可以掛在任何一節某條 item 上的 `tags` 標籤。
 > 理由：裂縫不是每週都有，硬留一個常常空著的章節會逼出湊數的內容。
-> 反過來，章節裡有一節是「台股」，它不是訊號類型而是**閱讀切面**——
-> 使用者的實際部位在台股，所以不管訊號屬於哪一類，台股相關的都額外集中講一次。
+> 反過來，章節裡有兩節不是訊號類型而是**閱讀切面**：
+> 「台股」（使用者的實際部位在台股，不管訊號屬哪一類都額外集中講一次）
+> 與「圖表側寫」（每日五圖把敘事逼成數字，值得單獨看一輪）。
 
 ---
 
@@ -46,7 +57,8 @@
 ```
 https://github.com/GunDamnBoy/advisory-knowledge-hub     → data/YYYY-MM-DD.json、data/index.json
 https://github.com/GunDamnBoy/podcast-knowledge-digest   → data/YYYY-MM-DD.json、data/index.json
-https://github.com/GunDamnBoy/ai-bubble-monitor          → data.json（單檔，含 15 天 history）
+https://github.com/GunDamnBoy/ai-bubble-monitor          → data.json（單檔，含約 17 天 history）
+https://github.com/GunDamnBoy/chart-of-the-day           → data/YYYY-MM-DD.json、data/index.json
 ```
 
 > **架構優勢：取資料這一段全部公開，不需要本機、不需要自建轉錄管線。**
@@ -77,15 +89,46 @@ index.json: updated, updatedLabel, count, days[]          ← 同上
 > 連兩次執行沒更新 `updated`，前端顯示時間是錯的。
 ⚠️ `takeaways` / `sections` / `meta` 是**字串化的 Python list**，要用 `ast.literal_eval`，不是標準 JSON。
 
-**AI 泡沫監控**（單一 `data.json`）
+**AI 泡沫監控**（單一 `data.json`）——**2026-08-04 起為 v2 架構**
 ```
-meta{built,lastAutoRun}, composite(float), dims{D1..D6}, dimMeta{D1..D6:{name,w,note}},
-zones[], indicators[{id,dim,name,value,disp,score,zone,anchors,dir,asof}],   ← 21 項
-tw{heat, items[{id,name,value,disp,score,note,src,asof}]},
+meta{version:2,built,lastAutoRun}, composite(float),
+dims{L1,L2,L3}, dimMeta{L1..L3:{name,w,note}},          ← v2：三層，w 加總 = 1.0
+quadrant{heat,support,regime},                          ← v2 新增
+triggers[{id,name,state,value,note,asof}],              ← v2 新增
+zones[], indicators[{id,dim,name,value,disp,score,zone,anchors,dir,asof}],   ← 22 項
+tw{heat, items[], subs, subWeights, officialPE, idx_hist, margin_hist, revTable, revMonth},
 stage{current,label,stages[],checklist[{item,state,evi}],note},
 events[{d,t,url}], history[{date,composite,dims{},tw}], charts{}, params{}
 ```
-`history` 保留約 15 個交易日，這是計算「本期變動」的來源。
+
+> ⚠️ **v1 → v2 是不可換算的改版。** 2026-08-03 以前是六維 `D1`–`D6`（按主題分群），
+> 08-04 起是三層 `L1`／`L2`／`L3`（按資料更新頻率分群）：
+> L1 市場與情緒 0.35／L2 資金與信用 0.35／L3 基本面兌現 0.30。
+> **兩者不是同一組東西，禁止互相映射。** 硬接起來就是假的趨勢，
+> 而跨期趨勢正是本系統相對於「翻舊文章」的唯一差異。
+>
+> `history` 內 08-03 以前的舊筆 `dims` 仍是 `D1`–`D6`，這是監控庫刻意保留的。
+> **算「本期變動」時，基準只能取與現值同一組鍵的最早一筆**，不可跨改版相減。
+> `verify.py` 已實作這條，跨架構會直接擋下。
+>
+> `indicators` 的 id 在 v2 也全換了（`cape`／`mag7`／`gsy_runup`…），
+> 舊期引用的 `hyoas`／`circular` 等在新版不存在。
+
+**每日五圖**
+```
+date, weekday, headline, standfirst, window{data_asof,note},
+about{upstream[], run, qa_flags[{chart,series,date,pct,z}]},
+charts[5]{slug, slot, theme, title, subtitle, kind, source, note,
+          series[{name,dates[],values[],color,axis,style}],   ← 很大，勿讀進上下文
+          markers[], takeaway, reading, so_what, watch[], tags[],
+          provenance{inspired_by{outlet,title,url}},           ← slot「重製圖」必填
+          files{png,svg}, option{...}}                         ← ECharts 設定，勿讀
+index.json: title, updated, days[{date,weekday,headline,charts,themes[],slots[]}]
+```
+> ⚠️ **單日 100KB，其中 96KB 是 `option` 與 `series`——這兩個欄位絕對不要讀進上下文。**
+> 真正有用的判讀（`takeaway`＋`reading`＋`so_what`）全部加起來只有約 2,400 字。
+> 五個 slot 固定為：當日主圖／市場異動圖／重製圖／主題深掘／軌道圖｜〈軌道名〉。
+> `about.qa_flags` 是圖表庫自己標記的資料品質疑慮，**要轉寫進本報的 `gaps`**。
 
 ---
 
@@ -93,7 +136,8 @@ events[{d,t,url}], history[{date,composite,dims{},tw}], charts{}, params{}
 
 - 每週日台北 **21:30** 執行（排在投顧知識庫週日夜間更新之後，確保拿得到當週最新一天）。
   排程 cron `30 21 * * 0`，**本地時間、非 UTC**（詳見 `MAINTENANCE.md` 第 3 節的警語）。
-- **敘事側**取過去 7 個日曆天；**量化側**取 `history` 全部（約 15 個交易日），
+- **敘事側**（投顧、節目、每日五圖）取過去 7 個日曆天；
+  **量化側**取 `history` 全部（約 17 個交易日），
   「本期變動」＝**頂層 `dims` 現值 − `history` 第一筆**。
   > 注意是「對**現值**」，不是「對 `history` 最後一筆」。監控庫盤後更新時 `history`
   > 會落後頂層一格，兩者不相等。`verify.py` 用的是現值，寫錯會被判 FAIL。
@@ -103,6 +147,20 @@ events[{d,t,url}], history[{date,composite,dims{},tw}], charts{}, params{}
   > 兩者不相等是正常的（第 001 期窗口 7 天、實際敘事側只涵蓋 6 天），不要為了對齊窗口而虛報。
 - 缺天不是失敗。但若投顧側 < 3 天或節目側 < 2 天，必須在 `about.run` 註明樣本偏薄，
   且**共振判定要保守**（樣本薄時容易把巧合當共振）。
+  每日五圖 2026-08-05 才開始運作，**前幾期天數必然偏少**，
+  少於 3 天時「圖表側寫」那一節就寫「本期樣本不足，只列可用的幾張」，不要硬湊五張。
+
+### 2.1 零新增資料時不產期
+
+若重新取回的三／四庫資料與上一期**完全相同**（例如同一天內重跑、或所有來源都還沒更新），
+**不要產期**。要產就得覆寫既有單期檔（違反永不改寫）或把日期虛報成隔天（違反涵蓋範圍如實記錄），
+兩條路都是壞的。
+
+正確做法：**停下來，在交付訊息裡寫明「本次未產期」與原因（各庫的實際最新日期）**，
+不寫任何檔案。這不是失敗，是設計。
+
+> 2026-08-03 排程建立後首次手動觸發就遇到這個情況，當時是靠臨場判斷停下來的；
+> 寫進規格是為了讓它變成必然，不是每次都賭運氣。
 
 ---
 
@@ -125,23 +183,38 @@ convergence-weekly/
 └─ README.md
 ```
 
-### 3.0 章節結構（固定六節）
+### 3.0 章節結構（固定七節）
 
-外殼把「零／五／六」寫死，中間的「一～四」由 `sections` 驅動，
-**編號寫在各節自己的 `title` 字串裡**。因此 `sections` 必須恰為 4 節，`verify.py` 會擋。
+「零」由外殼寫死；中間各節由 `sections` 驅動，**編號寫在各節自己的 `title` 字串裡**；
+尾巴兩節的編號由外殼**依 `sections` 長度動態計算**。
+`sections` 的 id 與順序必須是下表那五個，`verify.py` 會擋。
 
 | # | id | 節名 | 規則 |
 |---|---|---|---|
 | 零 | —（外殼寫死） | 量化底盤 | 不是新聞，是這段期間的客觀狀態。由 `quant` 驅動 |
-| 一 | `resonance` | 三方共振 | 三個獨立來源同時指向。量化側佐證**不得取自 `events`** |
+| 一 | `resonance` | 三方共振 | 三個**獨立**來源同時指向。量化佐證不得取自 `events`；**投顧與圖表計為同一票** |
 | 二 | `divergence` | 關鍵背離 | **必須給裁判方法**：用什麼數字、跨過什麼門檻就知道哪一邊對 |
-| 三 | `taiwan` | 台股 | 閱讀切面而非訊號類型。三庫講台股時常在不同層次，把層次差寫出來 |
-| 四 | `single` | 單邊訊號 | **只標記不判斷**。用 `list[]` 而非 `evidence[]`，但一樣要逐字 |
-| 五 | —（外殼寫死） | 下週該盯什麼 | 由 `watch[]` 驅動。每條可觀察、可證偽 |
-| 六 | —（外殼寫死） | 回饋給來源系統 | 由 `feedback[]` 驅動。選填，沒有就不出現 |
+| 三 | `taiwan` | 台股 | 閱讀切面。三庫講台股時常在不同層次，把層次差寫出來 |
+| 四 | `charts` | **圖表側寫** | 閱讀切面。**敘事講的事，圖表算出來是多少**——見下方規則 |
+| 五 | `single` | 單邊訊號 | **只標記不判斷**。用 `list[]` 而非 `evidence[]`，但一樣要逐字 |
+| 六 | —（外殼寫死） | 下週該盯什麼 | 由 `watch[]` 驅動。每條可觀察、可證偽 |
+| 七 | —（外殼寫死） | 回饋給來源系統 | 由 `feedback[]` 驅動。選填，沒有就不出現 |
+
+**第四節「圖表側寫」的規則：**
+
+- 這一節的職責是**數字落地**：把其他三庫用形容詞講的事，換成圖表庫算出來的具體數字。
+  「敘事說油價崩了 → 圖表算出自 3/31 高點 −32.9%」這種句型才是這一節要的。
+- **證據只能取自圖表庫自行重製的數字**（`series` 算出來的變動、`takeaway` 裡的數值）。
+  它的選題來自投顧庫，所以**選題本身不是證據**——不要寫「圖表庫也關注這件事」。
+- 五張圖不必每張都寫。挑**能和其他庫對話的**，其餘略過。
+- 圖表庫的判讀（`so_what`）與其他庫矛盾時，**把矛盾寫出來**，不要挑一邊。
+- `about.qa_flags` 轉寫進本報的 `gaps`。
 
 「共識裂縫」不是章節，是掛在 item 上的 `tags` 標籤（見第 0 節）。
-要增減章節數，**本節、`build_issue.py`、`index.html` 三處要一起改**。
+要增減章節數，**本節、`build_issue.py`、`index.html`、`verify.py` 的 `CANON` 四處要一起改**。
+
+> 第 001 期是 4 節（無 `charts`），`verify.py` 以 `LEGACY` 清單放行。
+> 舊期不回頭補寫——歷史全部保留的另一面是歷史不美化。
 
 ### 3.1 單期 JSON schema
 
@@ -153,10 +226,12 @@ convergence-weekly/
   "coverage":[{"k":"投顧知識庫","v":"3 天 / 約 420 則卡片"}, ...],
   "verdict":["段1","段2","段3"],              // 必須表態，允許 HTML 粗體
   "quant":{
-    "composite":53.5, "zone":"過熱警戒區（45–65）", "note":"兩週前 ...",
+    "schemaVer":"v2",                          // v2 必填。標明讀到的監控庫架構
+    "composite":66.6, "zone":"過熱警戒區（45–65）", "note":"兩週前 ...",
     "stage":{"current":2.6,"label":"...","lit":"2.5／6","delta":"本週無新增點亮"},
     "twHeat":57.3,
-    "dims":[{"id":"D1","name":"...","w":"25%","v":58.2,"delta":-4.3,"note":"...",
+    "quadrant":{"heat":68.0,"support":63.9,"regime":"過熱但有撐（melt-up 風險）"}, // v2 必填
+    "dims":[{"id":"L1","name":"市場與情緒","w":"35%","v":65.5,"delta":-4.3,"note":"...",
              "emph":true,      // 選填：這一維是本期重點，標題加粗
              "zeroish":true}], // 選填：值接近 0，長條改用灰色（＝「別當訊號讀」）。
                                // 長條的最小寬度是外殼無條件的安全網，與本旗標無關
@@ -179,7 +254,7 @@ convergence-weekly/
   "body":["段1","段2"],                         // 純段落
   "cols":[{"h":"量化側","body":"..."}],          // 2 或 3 欄對照，外殼自動判斷欄數
   "list":[{"body":"...","src":"..."}],          // 條列式（單邊訊號用）
-  "evidence":[{"d":"08/01","s":"監控","t":"..."}], // s: 監控/投顧/節目
+  "evidence":[{"d":"08/01","s":"監控","t":"..."}], // s: 監控/投顧/節目/圖表
   "call":{"h":"對投顧的含義","body":"..."}
 }
 ```
@@ -208,19 +283,28 @@ convergence-weekly/
 {
   "updated":"ISO8601 +08:00", "updatedLabel":"8/3 21:30", "count":N,
   "issues":[{                     // 依日期由新到舊
-    "date":"2026-08-03","issue":1,"label":"...","short":"8/3","headline":"...",
-    "composite":53.5,"dims":{"D1":58.2,...},"twHeat":57.3,"stage":2.6,
-    "file":"data/2026-08-03.json"
+    "date":"2026-08-09","issue":2,"label":"...","short":"8/9","headline":"...",
+    "quantVer":"v2",                                    // v2 必填。外殼靠它決定哪幾期能連成一條線
+    "composite":66.6,"dims":{"L1":65.5,"L2":70.5,"L3":36.1},
+    "quadrant":{"heat":68.0,"support":63.9},            // v2 必填
+    "twHeat":57.3,"stage":2.6,
+    "file":"data/2026-08-09.json",
+    "errata":["..."]                                    // 選填。發布後才發現的問題，見下
   }]
 }
 ```
 > **`composite` / `dims` / `twHeat` / `stage` 是跨期趨勢圖的唯一資料來源。**
 > 每期都必須寫，否則趨勢圖會斷。這也是本系統相對於「翻舊文章」的關鍵差異。
 >
-> 外殼目前畫五格：`composite`、`stage`、`dims.D4`、`dims.D5`、`twHeat`。
-> D1／D2／D3／D6 寫入但暫不繪製——保留是為了之後想換指標時有歷史可回溯，
-> **所以六維一定要寫齊**，不能只寫畫得到的那兩維。
-> 累積 4 期後檢視這五格選得對不對（見第 6 節待決事項）。
+> 外殼分兩組畫，因為監控庫 2026-08-04 改版且兩種分群不可換算：
+> **連續組**（全期）`composite`／`stage`／`twHeat`——定義跨版本未變；
+> **v2 組**（僅 `quantVer==='v2'` 的期別）`L1`／`L2`／`L3`／`quadrant.heat`／`quadrant.support`，
+> 從改版後重新起算，圖上標紅色 `v2` 徽章，並在說明文字寫出斷點位置。
+> 累積 4 期後檢視這八格選得對不對（見第 6 節待決事項）。
+
+**`errata`（選填）**：既有單期檔永不改寫，所以**發布後才發現的問題掛在這裡**，
+由外殼渲染成期別按鈕下方的黃色橫幅。原文一個字都不動，錯誤在旁邊講清楚。
+這是「歷史全部保留」與「不在頁面上說謊」兩條原則唯一能同時滿足的做法。
 
 ---
 
