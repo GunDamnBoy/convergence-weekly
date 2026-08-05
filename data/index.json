@@ -20,7 +20,12 @@
    },
    "twHeat": 57.3,
    "stage": 2.6,
-   "file": "data/2026-08-03.json"
+   "file": "data/2026-08-03.json",
+   "errata": [
+    "第四節「單邊訊號」有 <b>5 條 <code>list[]</code> 佐證無法逐字回查</b>：1 條 <code>src</code> 漏標「監控」，2 條是改寫而非原文，2 條是原文後接作者自行補寫的拼接。2026-08-05 用 <code>verify.py</code> 加全參數重跑本期時發現（當期是用自製腳本檢查，而 <code>list[]</code> 回查是 v0.4 才加進 <code>verify.py</code> 的）。",
+    "本期 <code>about.run</code> 稱「已對 40 條佐證做過回查」，實際 <code>evidence</code> 為 21 條、<code>list</code> 為 10 條。原文保留，產生器已改為由結構實算。",
+    "依「歷史全部保留、既有單期檔永不改寫」的規則，以上均不修改內文。受影響的是第四節，其餘章節的佐證回查無誤。"
+   ]
   }
  ]
 }

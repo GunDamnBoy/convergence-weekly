@@ -59,12 +59,16 @@ def main():
     for k in ('composite','zone','stage','twHeat','dims'):
         if k not in q: fails.append(f"quant 缺欄位 {k}")
     if len(q.get('dims', [])) != 6: fails.append("quant.dims 應為 6 維")
-    # 外殼寫死「零／五／六」，中間交給 sections，因此必須恰為 4 節
-    if len(d.get('sections', [])) != 4:
-        fails.append(f"sections 應為 4 節（實際 {len(d.get('sections', []))}）——"
-                     f"外殼的章節編號假設會被打破")
+    # 章節：v0.5 起加入「圖表側寫」成為 5 節；第 001 期是 4 節，兩者都要能過。
+    # 外殼的尾段編號已改為依 sections 長度動態計算，所以這裡只驗 id 與順序。
+    CANON = ['resonance', 'divergence', 'taiwan', 'charts', 'single']
+    LEGACY = ['resonance', 'divergence', 'taiwan', 'single']
+    sec_ids = [s.get('id') for s in d.get('sections', [])]
+    if sec_ids not in (CANON, LEGACY):
+        fails.append(f"sections 的 id 與順序不合規：{sec_ids}\n"
+                     f"          應為 {CANON}（v0.5 起）或 {LEGACY}（v0.4 以前的舊期）")
     n_field = len(fails)
-    print(f"[{'ok ' if not n_field else 'FAIL'}] 必備欄位與章節數")
+    print(f"[{'ok ' if not n_field else 'FAIL'}] 必備欄位與章節結構（{len(sec_ids)} 節）")
 
     # --- 2. index 快照 ---
     n0 = len(fails)

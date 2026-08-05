@@ -266,6 +266,16 @@ function renderItem(it){
   return h + `</div>`;
 }
 
+// 勘誤：既有單期檔永不改寫，所以事後發現的問題掛在 index.json 的期別項目上。
+// 每一期的 errata 是選填字串陣列，有值才顯示橫幅。
+function renderErrata(index, date){
+  const me = index.issues.find(i => i.date === date);
+  if(!me || !me.errata || !me.errata.length) return '';
+  return `<div class="warn" style="margin:18px 0 0">
+    <b>本期勘誤（發布後發現，原文保留未改寫）</b>
+    <ul>${me.errata.map(e => `<li>${e}</li>`).join('')}</ul></div>`;
+}
+
 function renderIssue(d, index){
   const src = d.coverage.map(c => `<span>${c.k} · ${c.v}</span>`).join('');
   const btns = index.issues.map(i =>
@@ -280,6 +290,7 @@ function renderIssue(d, index){
       <div class="srcs">${src}</div>
     </header>
     <div class="switch"><span class="lbl">期別</span>${btns}</div>
+    ${renderErrata(index, d.date)}
     <div class="verdict"><h2>本期判斷</h2>${d.verdict.map(p => `<p>${p}</p>`).join('')}</div>
 
     <h2 class="sec">零 · 量化底盤：這一節不是新聞，是這段期間的客觀狀態</h2>
@@ -287,24 +298,30 @@ function renderIssue(d, index){
     ${renderQuant(d.quant)}
     <div class="panel">${renderTrend(index)}</div>`;
 
-  // 「零」「五」「六」三節由外殼寫死（量化底盤／下週該盯什麼／回饋），
-  // 中間的「一～四」全部由 d.sections 驅動，編號寫在各節自己的 title 字串裡。
-  // 也就是說：sections 必須恰為 4 節、且 title 自帶「一 ·」～「四 ·」。
-  // 要增減章節數，schema（AGENT_BRIEF 3.1）、build_issue.py、這裡三處要一起改。
+  // 「零」由外殼寫死（量化底盤）；中間各節由 d.sections 驅動，
+  // 編號寫在各節自己的 title 字串裡（「一 ·」開始）。
+  // 尾巴兩節（下週該盯什麼／回饋）的編號**依 sections 長度動態計算**，
+  // 這樣 4 節（第 001 期）與 5 節（v0.5 起，多了圖表側寫）都不會錯位。
   h += d.sections.map(s => `<h2 class="sec">${s.title}</h2>` +
     (s.lede ? `<p class="lede">${s.lede}</p>` : '<div style="height:14px"></div>') +
     s.items.map(renderItem).join('')).join('');
 
-  h += `<h2 class="sec">五 · 下週該盯什麼（每一條都可觀察、可證偽）</h2><div style="height:14px"></div>
+  const CN = ['零','一','二','三','四','五','六','七','八','九','十'];
+  const nSec = d.sections.length;
+  const numWatch = CN[nSec + 1] || String(nSec + 1);
+  const numFb    = CN[nSec + 2] || String(nSec + 2);
+
+  h += `<h2 class="sec">${numWatch} · 下週該盯什麼（每一條都可觀察、可證偽）</h2><div style="height:14px"></div>
     <div class="item"><ul class="sig">${d.watch.map(w => `<li>${w}</li>`).join('')}</ul></div>`;
 
   if(d.feedback && d.feedback.length)
-    h += `<h2 class="sec">六 · 這期發現的、該回饋給來源系統的事</h2><div style="height:14px"></div>
+    h += `<h2 class="sec">${numFb} · 這期發現的、該回饋給來源系統的事</h2><div style="height:14px"></div>
       <div class="item"><ul class="sig">${d.feedback.map(w => `<li>${w}</li>`).join('')}</ul></div>`;
 
   h += `<footer>
       <b>資料來源與方法</b><br>
-      三個公開資料集自動比對產生：投顧知識庫（advisory-knowledge-hub）、節目知識庫（podcast-knowledge-digest）、AI 泡沫監控（ai-bubble-monitor）。敘事側佐證逐字取自實際卡片、集數標題或當日交叉觀察，未經改寫；量化側數值直接取自 <code>data.json</code>。三庫在產生階段互不引用。<br><br>
+      四個公開資料集自動比對產生：投顧知識庫（advisory-knowledge-hub）、節目知識庫（podcast-knowledge-digest）、AI 泡沫監控（ai-bubble-monitor）、每日五圖（chart-of-the-day）。敘事側佐證逐字取自實際卡片、集數標題或當日交叉觀察，未經改寫；量化側數值直接取自 <code>data.json</code> 與圖表的重製序列。<br>
+      前三庫在產生階段互不引用。<b>每日五圖的選題取自投顧知識庫，因此它與投顧側不算兩個獨立來源</b>——它在本報中的角色是量化側的第二個裁判：只有它自行重製的數字（Yahoo／FRED）才被當成證據。<br><br>
       <b>本期方法</b>：${d.about.method}<br><br>
       <b>執行紀錄</b>：${d.about.run}
       ${d.gaps && d.gaps.length ? `<div class="warn"><b>本期發現的資料缺口</b>
