@@ -261,7 +261,7 @@ function renderQuant(q){
     <div class="hero">
       <span class="n">${q.composite.toFixed(1)}</span>
       <span class="z">${q.zone}</span>
-      <span class="dlt">${q.note}</span>
+      <span class="dlt">${q.note || ''}</span>
     </div>
     <div class="cap">綜合泡沫溫度．${v2 ? '三層加權' : '六維加權'}．泡沫階段 ${q.stage.current}（${q.stage.label}，點亮 ${q.stage.lit}，${q.stage.delta}）${
       typeof q.twHeat === 'number' ? `．台股熱度 <b>${q.twHeat.toFixed(1)}</b>` : ''}</div>

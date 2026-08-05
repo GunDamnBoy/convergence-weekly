@@ -62,7 +62,7 @@ def main():
               'quant','sections','watch','gaps','about'):
         if k not in d: fails.append(f"單期 JSON 缺欄位 {k}")
     q = d.get('quant', {})
-    for k in ('composite','zone','stage','twHeat','dims'):
+    for k in ('composite','zone','note','stage','twHeat','dims'):
         if k not in q: fails.append(f"quant 缺欄位 {k}")
     # 監控庫 2026-08-04 由 v1（六維 D1–D6）改版為 v2（三層 L1–L3）。
     # 兩種分群不可換算，所以這裡依版本各驗各的，不做轉換。

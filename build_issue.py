@@ -6,6 +6,16 @@
 用途：把一期的內容寫成 data/YYYY-MM-DD.json，並更新 data/index.json。
 每週的排程任務會自己組出等價的資料結構——這個檔案是「schema 的可執行文件」，
 改 schema 時請同步改這裡與 AGENT_BRIEF.md 第 3 節。
+
+⚠️ **本檔的內容停在第 001 期，那是 v0.4 以前的形狀，不要照抄結構：**
+  · `quant.dims` 是 v1 的六維 D1–D6；v0.5 起監控庫改版，新期必須是三層 L1–L3
+    並帶 `schemaVer:"v2"` 與 `quadrant{heat,support,regime}`
+  · `sections` 只有 4 節（無 `charts`）；v0.5 起必須是 5 節
+    resonance→divergence→taiwan→charts→single
+  依規則「既有單期檔永不改寫」，第 001 期就是長這樣，本檔不追著改內容。
+  **要看現行 schema 請以 AGENT_BRIEF.md 第 3 節為準**；本檔示範的是
+  「怎麼寫檔、怎麼更新 index.json」這層機制（含保留 errata、防覆寫閘門），
+  那部分是與版本無關的，仍然有效。
 """
 import json, os, io, sys
 
