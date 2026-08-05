@@ -132,6 +132,13 @@ table.bars tr:hover .fill{background:var(--red-d)}
 .sm .now{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
 .sm .chg{font-size:11.5px;color:var(--mid);font-variant-numeric:tabular-nums}
 .sm svg{display:block;width:100%;height:34px;margin-top:6px;overflow:visible}
+.sm .v2,.csub .v2{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.04em;
+  padding:1px 4px;border-radius:3px;background:var(--red);color:#fff;vertical-align:1px}
+.quad{display:flex;gap:22px;align-items:baseline;flex-wrap:wrap;margin-top:6px}
+.quad span{font-size:12.5px;color:var(--mid)}
+.quad b{font-size:22px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;
+  margin-right:4px}
+.quad .rg{font-size:13px;font-weight:700;color:var(--red);margin-left:auto}
 .empty{border:1px dashed var(--line);border-radius:6px;padding:16px;
   color:var(--lite);font-size:13.5px;text-align:center}
 
@@ -191,33 +198,53 @@ function renderTrend(index){
       <div class="csub">每一期的量化底盤都會被保留，累積兩期以上後這裡會顯示走勢。</div>
       <div class="empty">目前僅 ${iss.length} 期。下一期發布後即開始繪製。</div>`;
   }
-  // 這五格的資料來源全部是 index.json 的量化快照。
-  // 每期都必須寫齊 composite / dims / twHeat / stage，漏一個這裡就靜靜地少一條線。
-  const defs = [
-    {k:'composite', n:'綜合泡沫溫度', get:i => i.composite},
-    {k:'stage', n:'泡沫階段', get:i => i.stage},
-    {k:'d4', n:'融資與信用', get:i => i.dims && i.dims.D4},
-    {k:'d5', n:'市場動能與情緒', get:i => i.dims && i.dims.D5},
-    {k:'tw', n:'台股熱度', get:i => i.twHeat}
+  // 資料來源全部是 index.json 的量化快照。每期都必須寫齊，漏一個這裡就靜靜地少一條線。
+  //
+  // AI 泡沫監控在 2026-08-04 由 v1（六維 D1–D6）改版為 v2（三層 L1–L3），
+  // 兩者的分群邏輯不同（一個按主題、一個按資料更新頻率），**不可互相換算**。
+  // 所以趨勢分兩組畫：
+  //   CONT — 跨版本定義未變，全期連續
+  //   V2   — 只取 quantVer==='v2' 的期別，從改版後重新起算，並在圖上標明
+  const CONT = [
+    {n:'綜合泡沫溫度', get:i => i.composite},
+    {n:'泡沫階段', get:i => i.stage},
+    {n:'台股熱度', get:i => i.twHeat}
   ];
-  const cards = defs.map(d => {
-    const vals = iss.map(d.get).filter(v => typeof v === 'number');
+  const V2 = [
+    {n:'L1 市場與情緒', get:i => i.dims && i.dims.L1},
+    {n:'L2 資金與信用', get:i => i.dims && i.dims.L2},
+    {n:'L3 基本面兌現', get:i => i.dims && i.dims.L3},
+    {n:'象限 · 熱度', get:i => i.quadrant && i.quadrant.heat},
+    {n:'象限 · 支撐', get:i => i.quadrant && i.quadrant.support}
+  ];
+  const v2iss = iss.filter(i => i.quantVer === 'v2');
+  const card = (d, rows, tag) => {
+    const vals = rows.map(d.get).filter(v => typeof v === 'number');
     if(vals.length < 2) return '';
     const now = vals[vals.length-1], first = vals[0];
     return `<figure title="${d.n}：${first.toFixed(1)} → ${now.toFixed(1)}">
-      <figcaption>${d.n}</figcaption>
+      <figcaption>${d.n}${tag ? ' <span class="v2">'+tag+'</span>' : ''}</figcaption>
       <div class="now">${now.toFixed(1)}</div>
-      <div class="chg">自第一期 ${fmtDelta(+(now-first).toFixed(1))}</div>
+      <div class="chg">${tag ? '自 v2 起' : '自第一期'} ${fmtDelta(+(now-first).toFixed(1))}</div>
       ${spark(vals)}
     </figure>`;
-  }).join('');
+  };
+  const cards = CONT.map(d => card(d, iss, '')).join('')
+              + V2.map(d => card(d, v2iss, 'v2')).join('');
+  const legacy = iss.length - v2iss.length;
   return `<div class="ctitle">跨期趨勢</div>
-    <div class="csub">共 ${iss.length} 期。每格為獨立小圖（各自縮放），只比較方向不比較高低。</div>
+    <div class="csub">共 ${iss.length} 期。每格為獨立小圖（各自縮放），只比較方向不比較高低。${
+      legacy ? `<br><b>監控庫 2026-08-04 由六維改為三層，兩種分群不可換算。</b>
+      前 ${legacy} 期為舊架構，層分數與象限自改版後重新起算（標 <span class="v2">v2</span>）；
+      綜合溫度、泡沫階段、台股熱度三項定義未變，全期連續。` : ''}</div>
     <div class="sm">${cards}</div>`;
 }
 
 function renderQuant(q){
   if(!q) return '';
+  // schemaVer 標的是「這期讀到的監控庫是哪個架構」：v1＝六維 D1–D6，v2＝三層 L1–L3。
+  // 舊期沒有這個欄位，就依 dims 長度推回去。
+  const v2 = q.schemaVer === 'v2' || (!q.schemaVer && q.dims.length === 3);
   const rows = q.dims.map(d => {
     // 最小寬度是無條件的安全網（值為 0 時長條不會整條消失）；
     // zeroish 只負責把長條改成灰色，表示「這一維目前接近 0，不要當成訊號」。
@@ -236,10 +263,19 @@ function renderQuant(q){
       <span class="z">${q.zone}</span>
       <span class="dlt">${q.note}</span>
     </div>
-    <div class="cap">綜合泡沫溫度．六維加權．泡沫階段 ${q.stage.current}（${q.stage.label}，點亮 ${q.stage.lit}，${q.stage.delta}）${
+    <div class="cap">綜合泡沫溫度．${v2 ? '三層加權' : '六維加權'}．泡沫階段 ${q.stage.current}（${q.stage.label}，點亮 ${q.stage.lit}，${q.stage.delta}）${
       typeof q.twHeat === 'number' ? `．台股熱度 <b>${q.twHeat.toFixed(1)}</b>` : ''}</div>
-    <div class="ctitle">六個維度</div>
-    <div class="csub">數值為 0–100 熱度，越高越熱。長條長度即為數值；右欄為本期變動。</div>
+    ${q.quadrant ? `<div class="ctitle">象限定位</div>
+      <div class="csub">熱度 ＝（L1＋L2）／2，市場與資金有多熱；支撐 ＝ 100 − L3，基本面還剩多少兌現空間。
+        比單一綜合溫度多一個維度：同樣 60 分，有撐和沒撐是兩回事。</div>
+      <div class="quad">
+        <span><b>${q.quadrant.heat.toFixed(1)}</b> 熱度</span>
+        <span><b>${q.quadrant.support.toFixed(1)}</b> 支撐</span>
+        <span class="rg">${q.quadrant.regime}</span>
+      </div>` : ''}
+    <div class="ctitle">${v2 ? '三個層次（依資料更新頻率分層）' : '六個維度'}</div>
+    <div class="csub">數值為 0–100 熱度，越高越熱。長條長度即為數值；右欄為本期變動。${
+      v2 ? '' : '<br><b>本期為 2026-08-04 改版前的舊架構（六維）</b>，與之後的三層不可直接比較。'}</div>
     <table class="bars">${rows}</table>
     ${q.callout ? `<div class="call" style="margin-top:22px">
       <b class="h">${q.callout.h}</b>${q.callout.body}</div>` : ''}

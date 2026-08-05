@@ -64,7 +64,19 @@ def main():
     q = d.get('quant', {})
     for k in ('composite','zone','stage','twHeat','dims'):
         if k not in q: fails.append(f"quant 缺欄位 {k}")
-    if len(q.get('dims', [])) != 6: fails.append("quant.dims 應為 6 維")
+    # 監控庫 2026-08-04 由 v1（六維 D1–D6）改版為 v2（三層 L1–L3）。
+    # 兩種分群不可換算，所以這裡依版本各驗各的，不做轉換。
+    v2 = q.get('schemaVer') == 'v2' or (not q.get('schemaVer') and len(q.get('dims', [])) == 3)
+    want_ids = ['L1','L2','L3'] if v2 else ['D1','D2','D3','D4','D5','D6']
+    got_ids = [x.get('id') for x in q.get('dims', [])]
+    if got_ids != want_ids:
+        fails.append(f"quant.dims 的 id 與順序應為 {want_ids}（{'v2 三層' if v2 else 'v1 六維'}），實際 {got_ids}")
+    if v2:
+        if 'schemaVer' not in q:
+            fails.append("v2 的 quant 必須明寫 schemaVer:'v2'——少了它，之後沒人分得出斷點在哪")
+        qd = q.get('quadrant')
+        if not isinstance(qd, dict) or not {'heat','support','regime'} <= set(qd):
+            fails.append("v2 的 quant 缺 quadrant{heat,support,regime}")
     # 章節：v0.5 起加入「圖表側寫」成為 5 節；第 001 期是 4 節，兩者都要能過。
     # 外殼的尾段編號已改為依 sections 長度動態計算，所以這裡只驗 id 與順序。
     CANON = ['resonance', 'divergence', 'taiwan', 'charts', 'single']
@@ -82,10 +94,14 @@ def main():
     if not me:
         fails.append("index.json 沒有本期")
     else:
-        for k in ('composite','dims','twHeat','stage','file','issue','label','short','headline'):
+        need = ['composite','dims','twHeat','stage','file','issue','label','short','headline']
+        if v2: need += ['quantVer','quadrant']
+        for k in need:
             if k not in me: fails.append(f"index 本期缺 {k}（跨期趨勢圖會斷）")
-        if set(me.get('dims', {})) != {'D1','D2','D3','D4','D5','D6'}:
-            fails.append("index 本期 dims 不完整（跨期趨勢圖會斷）")
+        if set(me.get('dims', {})) != set(want_ids):
+            fails.append(f"index 本期 dims 應為 {want_ids}（跨期趨勢圖會斷）")
+        if v2 and me.get('quantVer') != 'v2':
+            fails.append("index 本期的 quantVer 應為 'v2'——外殼靠它決定哪幾期能連成一條線")
     print(f"[{'ok ' if len(fails) == n0 else 'FAIL'}] index.json 量化快照")
 
     # --- 3. 敘事側逐字回查 ---
@@ -167,11 +183,34 @@ def main():
         print(f"[{'ok ' if not bad else 'FAIL'}] 量化側指標存在性：{len(quant_ev)} 條，失敗 {len(bad)}")
         for x in bad: print("        ✗", x)
 
-        # 六維現值與變動 vs history（變動＝現值 − history 第一筆）
+        # 層／維現值與變動 vs history（變動＝現值 − 基準筆）
+        # 監控庫改版當天之前的 history 舊筆還是 v1 的 D1–D6 鍵（那邊刻意不回頭改寫），
+        # 所以基準只能取「與現值同一組鍵」的最早一筆，否則就是拿三層去減六維。
         h = b.get('history', [])
-        if h:
+        cur_keys = set(b.get('dims', {}))
+        same = [r for r in h if set(r.get('dims', {})) == cur_keys]
+        if not cur_keys:
+            fails.append("監控庫的頂層 dims 是空的，無法核對")
+        elif not same:
+            warns.append("history 裡沒有與現值同架構的紀錄（監控庫剛改版？），跳過變動核對")
+            skipped.append("層／維變動 vs history")
+        elif set(x['id'] for x in q['dims']) != cur_keys:
+            # 本期的架構與眼前這份監控資料不同。兩種可能，訊息要同時涵蓋：
+            #   (a) 正在發的新一期用錯了架構 → 這是真錯，必須擋下
+            #   (b) 拿舊期回頭驗今天的資料 → 工具用錯了，舊期在當時是對的
+            fails.append(
+                f"本期的量化架構是 {sorted(set(x['id'] for x in q['dims']))}，"
+                f"但 --bub 這份監控資料是 {sorted(cur_keys)}。\n"
+                f"          若你正在發新一期：改用監控庫現行架構重寫 quant.dims。\n"
+                f"          若你是拿舊期回頭驗今天的資料：那一期在發布當時是對的，"
+                f"verify.py 是發布前檢查，不適合這樣用。")
+            print("[FAIL] 層／維現值與變動 vs history（架構不符，見下方說明）")
+        else:
             n1 = len(fails)
-            first = h[0]
+            first = same[0]
+            if len(same) < len(h):
+                warns.append(f"history 共 {len(h)} 筆，其中僅 {len(same)} 筆與現值同架構；"
+                             f"變動以 {first['date']} 為基準，不跨改版計算")
             for dim in q['dims']:
                 cur = b['dims'][dim['id']]
                 delta = round(cur - first['dims'][dim['id']], 1)
@@ -180,7 +219,7 @@ def main():
                 if abs(dim['delta'] - delta) > .05:
                     fails.append(f"{dim['id']} 變動 {dim['delta']} ≠ 實算 {delta}")
             print(f"[{'ok ' if len(fails) == n1 else 'FAIL'}] "
-                  f"六維現值與變動 vs history（基準 {first['date']}）")
+                  f"層／維現值與變動 vs history（基準 {first['date']}，同架構 {len(same)} 筆）")
 
         # 量化佐證不得出自 events：那是 Google News，用它會讓同一則新聞
         # 被當成兩個獨立來源，「三方共振」就是假的。這是 FAIL，不是 warn。
