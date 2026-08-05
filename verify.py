@@ -4,19 +4,24 @@
 主題匯流訊號報 · 發布前檢查
 
 用法：
-    python3 verify.py data/2026-08-03.json --adv /path/adv.txt --pod /path/pod.txt --bub /path/bub/data.json
+    python3 verify.py data/2026-08-03.json --adv /path/adv.txt --pod /path/pod.txt \
+        --cotd /path/cotd.txt --bub /path/bub/data.json
 
-檢查六件事：
- 1. 單期 JSON 與 index.json 可解析、必備欄位齊全
+檢查七件事：
+ 1. 單期 JSON 與 index.json 可解析、必備欄位齊全、章節 id 與順序合規
  2. index.json 帶有本期的量化快照（跨期趨勢圖的唯一資料來源，漏了圖會斷）
- 3. 敘事側每一條 evidence 都能在 adv.txt / pod.txt 裡逐字回查到
+ 3. 敘事側每一條 evidence 都能在 adv.txt / pod.txt / cotd.txt 裡逐字回查到
     （含 list[] 的條目——單邊訊號整節用 list 而非 evidence，一樣要逐字）
+ 3.5 標為「共振」的 item 真的有三個獨立來源。
+    **投顧與圖表計為同一票**——每日五圖的選題取自 advisory-knowledge-hub，
+    「投顧在講＋圖表也在畫」是同一則新聞被數兩次，不是兩個獨立來源。
  4. 量化側每一條 evidence 引用的指標 id 確實存在於 bub 的 indicators / tw / stage
  5. 六維現值與變動 vs history（變動＝現值 − history 第一筆）
- 6. 量化佐證不得取自 events——那是 Google News，會造成同一則新聞被數兩次，
-    「三方共振」就會是假的。這一項是 FAIL，不是 warn。
+ 6. 量化佐證不得取自 events——那是 Google News，會造成同一則新聞被數兩次。
+    這一項是 FAIL，不是 warn。
 
 注意 --bub 吃的是**原始 bub/data.json**，不是壓縮過的 bub.txt。
+--cotd 則是壓縮過的 cotd.txt（敘事回查用）。
 
 任何一項 FAIL 就不要發布。本檔是發布前檢查，跑在寫檔之後、推送之前。
 """
@@ -42,6 +47,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('issue')
     ap.add_argument('--adv'); ap.add_argument('--pod'); ap.add_argument('--bub')
+    ap.add_argument('--cotd', help='每日五圖的摘要層 cotd.txt（敘事回查用）')
     ap.add_argument('--index', default=None)
     a = ap.parse_args()
 
@@ -84,7 +90,7 @@ def main():
 
     # --- 3. 敘事側逐字回查 ---
     corpus = ''
-    for p in (a.adv, a.pod):
+    for p in (a.adv, a.pod, a.cotd):
         if p and os.path.exists(p): corpus += open(p, encoding='utf-8').read()
     ev = [(it, e) for s in d['sections'] for it in s['items'] for e in it.get('evidence', [])]
     narr = [e for _, e in ev if e.get('s') != '監控']
@@ -93,7 +99,7 @@ def main():
     lst = [l for s in d['sections'] for it in s['items'] for l in it.get('list', [])]
     lst_narr = [l for l in lst if '監控' not in str(l.get('src', ''))]
     if not corpus:
-        warns.append("未提供 --adv/--pod，跳過敘事側回查")
+        warns.append("未提供 --adv/--pod/--cotd，跳過敘事側回查")
         skipped.append("敘事側逐字回查")
     else:
         bad = []
@@ -110,6 +116,29 @@ def main():
         print(f"[{'ok ' if not bad else 'FAIL'}] 敘事側佐證回查："
               f"{n} 條（evidence {len(narr)}＋list {len(lst_narr)}），失敗 {len(bad)}")
         for b in bad: print("        ✗", b)
+
+    # --- 3.5 來源獨立性：圖表庫與投顧庫不是兩票 ---
+    # 每日五圖的選題取自 advisory-knowledge-hub（見它自己的 about.upstream），
+    # 所以「投顧在講 ＋ 圖表也在畫」不構成兩個獨立來源——那是同一則新聞被數兩次。
+    # 這是 events 那條禁令的同型問題，只是換了層皮。
+    VOICE = {'投顧': 'narrative_adv', '圖表': 'narrative_adv',   # ← 同一票，故意的
+             '節目': 'narrative_pod', '監控': 'quant'}
+    n35 = len(fails)
+    bad_res = []
+    for s in d['sections']:
+        if s.get('id') != 'resonance': continue
+        for it in s['items']:
+            tags = ' '.join(t.get('t', '') for t in it.get('tags', []))
+            if '共振' not in tags: continue
+            voices = {VOICE.get(e.get('s')) for e in it.get('evidence', [])} - {None}
+            if len(voices) < 3:
+                srcs = sorted({e.get('s') for e in it.get('evidence', [])} - {None})
+                bad_res.append(f"{it.get('title','(無標題)')[:36]}｜佐證來源 {srcs} "
+                               f"→ 只有 {len(voices)} 個獨立聲音")
+    if bad_res:
+        fails.append(f"{len(bad_res)} 條標為「共振」的 item 其實不到三個獨立來源")
+    print(f"[{'ok ' if not bad_res else 'FAIL'}] 共振的來源獨立性（投顧與圖表計為同一票）")
+    for x in bad_res: print("        ✗", x)
 
     # --- 4. 量化側指標存在性 ---
     quant_ev = [e for _, e in ev if e.get('s') == '監控']
