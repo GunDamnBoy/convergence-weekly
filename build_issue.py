@@ -264,8 +264,10 @@ def main():
     issues = []
     if os.path.exists(idx_path):
         issues = json.load(io.open(idx_path, encoding="utf-8")).get("issues", [])
+    # 保留該期既有的 errata：那是發布後才發現的問題，重建時洗掉等於把勘誤吞了
+    prev = next((i for i in issues if i["date"] == DATE), {})
     issues = [i for i in issues if i["date"] != DATE]
-    issues.append({
+    entry = {
         "date": DATE,
         "issue": ISSUE,
         "label": issue["label"],
@@ -276,7 +278,13 @@ def main():
         "twHeat": issue["quant"]["twHeat"],
         "stage": issue["quant"]["stage"]["current"],
         "file": f"data/{DATE}.json"
-    })
+    }
+    if issue["quant"].get("schemaVer") == "v2":
+        entry["quantVer"] = "v2"
+        entry["quadrant"] = {k: issue["quant"]["quadrant"][k] for k in ("heat", "support")}
+    if prev.get("errata"):
+        entry["errata"] = prev["errata"]
+    issues.append(entry)
     issues.sort(key=lambda x: x["date"], reverse=True)
     # 第 001 期是手動在 18:00 產出的，所以這裡寫死 18:00——它記錄的是「本期實際發布時間」，
     # 不是排程時刻（排程是每週日 21:30）。每週的排程任務要用當下的實際時間填這兩欄。

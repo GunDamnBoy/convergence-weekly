@@ -16,7 +16,7 @@
     **投顧與圖表計為同一票**——每日五圖的選題取自 advisory-knowledge-hub，
     「投顧在講＋圖表也在畫」是同一則新聞被數兩次，不是兩個獨立來源。
  4. 量化側每一條 evidence 引用的指標 id 確實存在於 bub 的 indicators / tw / stage
- 5. 六維現值與變動 vs history（變動＝現值 − history 第一筆）
+ 5. 層／維現值與變動 vs history（變動＝現值 − **同架構最早一筆**，不跨改版相減）
  6. 量化佐證不得取自 events——那是 Google News，會造成同一則新聞被數兩次。
     這一項是 FAIL，不是 warn。
 
@@ -105,17 +105,22 @@ def main():
     print(f"[{'ok ' if len(fails) == n0 else 'FAIL'}] index.json 量化快照")
 
     # --- 3. 敘事側逐字回查 ---
+    # 三份敘事摘要層要分別檢查有沒有給。只給其中一兩份時，缺的那庫的佐證
+    # 會全部「查不到」而變成假 FAIL——那是參數沒給，不是引用錯了。
     corpus = ''
-    for p in (a.adv, a.pod, a.cotd):
+    missing_src = []
+    for label, p in (('--adv', a.adv), ('--pod', a.pod), ('--cotd', a.cotd)):
         if p and os.path.exists(p): corpus += open(p, encoding='utf-8').read()
+        else: missing_src.append(label)
     ev = [(it, e) for s in d['sections'] for it in s['items'] for e in it.get('evidence', [])]
     narr = [e for _, e in ev if e.get('s') != '監控']
     # 單邊訊號整節用 list[] 而非 evidence[]，但「佐證一律逐字」是無條件的規則，
     # 所以 list 也要回查。src 裡有「監控」的視為量化側，不做 substring。
     lst = [l for s in d['sections'] for it in s['items'] for l in it.get('list', [])]
     lst_narr = [l for l in lst if '監控' not in str(l.get('src', ''))]
-    if not corpus:
-        warns.append("未提供 --adv/--pod/--cotd，跳過敘事側回查")
+    if missing_src:
+        warns.append(f"未提供 {'／'.join(missing_src)}，跳過敘事側回查——"
+                     f"部分給定會讓缺的那庫全部假 FAIL，所以缺一個就整批跳過")
         skipped.append("敘事側逐字回查")
     else:
         bad = []
@@ -139,7 +144,12 @@ def main():
     # 這是 events 那條禁令的同型問題，只是換了層皮。
     VOICE = {'投顧': 'narrative_adv', '圖表': 'narrative_adv',   # ← 同一票，故意的
              '節目': 'narrative_pod', '監控': 'quant'}
-    n35 = len(fails)
+    # s 打錯字（例如「圖表庫」）會讓 VOICE.get() 回 None 而靜靜地少一票，
+    # 錯誤訊息還會誤導成「來源不夠獨立」。先把非法值擋下來。
+    bad_s = sorted(str(e.get('s')) for _, e in ev if e.get('s') not in VOICE)
+    bad_s = sorted(set(bad_s))
+    if bad_s:
+        fails.append(f"evidence[].s 有非法值 {bad_s}——合法值只有 {sorted(VOICE)}")
     bad_res = []
     for s in d['sections']:
         if s.get('id') != 'resonance': continue
@@ -163,12 +173,14 @@ def main():
         skipped.append("量化側存在性／六維變動／events 檢查")
     else:
         b = json.load(open(a.bub, encoding='utf-8'))
-        # 合法的量化欄位名＝21 項指標 id ＋ 台股項目 id ＋ 頂層量化欄位（stage / composite
-        # / twheat / 六維 id）。docstring 一直說 stage 算數，舊實作漏掉了。
+        # 合法的量化欄位名＝指標 id（動態讀，v2 為 22 項）＋ 台股項目 id
+        # ＋ 頂層量化欄位。維度 id 兩代並存：v1 的 d1–d6 與 v2 的 l1–l3 都算數，
+        # 因為舊期引用 d4、新期引用 l2 都是對的。
         ids = ({i['id'] for i in b['indicators']}
                | {i['id'] for i in b['tw']['items']}
-               | {'stage', 'composite', 'twheat'}
-               | {f'd{n}' for n in range(1, 7)})
+               | {'stage', 'composite', 'twheat', 'quadrant', 'heat', 'support'}
+               | {f'd{n}' for n in range(1, 7)}
+               | {f'l{n}' for n in range(1, 4)})
         evt_titles = ' '.join(e['t'] for e in b.get('events', []))
         bad, no_code = [], 0
         for e in quant_ev:
@@ -188,7 +200,10 @@ def main():
         # 所以基準只能取「與現值同一組鍵」的最早一筆，否則就是拿三層去減六維。
         h = b.get('history', [])
         cur_keys = set(b.get('dims', {}))
-        same = [r for r in h if set(r.get('dims', {})) == cur_keys]
+        # 顯式依日期排序，不倚賴監控庫的陣列順序——它哪天改成降冪，
+        # 這裡會靜靜地拿到最新一筆當基準，而且不會報錯。
+        same = sorted([r for r in h if set(r.get('dims', {})) == cur_keys],
+                      key=lambda r: r.get('date', ''))
         if not cur_keys:
             fails.append("監控庫的頂層 dims 是空的，無法核對")
         elif not same:
