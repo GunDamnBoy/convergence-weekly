@@ -232,8 +232,20 @@ git push -u origin main
   餵壓縮檔進去會直接壞掉。敘事側才是 substring 回查，量化側做的是欄位名存在性與數值核對。
 - **`build_issue.py` 有防覆寫閘門。** 既有單期檔存在時它會拒跑（要 `--force`）。
   這是刻意的：那支檔案會被當範例反覆閱讀，很容易被順手執行而洗掉歷史。
-- **`sections` 必須恰為 4 節。** `index.html` 把「零／五／六」寫死，
-  「一～四」的編號寫在各節自己的 `title` 裡。多一節少一節都會讓編號錯亂，`verify.py` 會擋。
+- **`sections` 的 id 與順序被鎖死。** v0.5 起為
+  `resonance→divergence→taiwan→charts→single`（5 節）；第 001 期是 4 節（無 `charts`），
+  `verify.py` 的 `LEGACY` 清單放行。外殼尾段編號已改為依長度動態計算，不再寫死。
+  要增減章節，brief 第 3.0 節、`build_issue.py`、`index.html`、`verify.py` 的 `CANON` 四處一起改。
+- **每日五圖不是獨立來源。** 它的 `about.upstream[0]` 就是投顧庫的當日檔——選題同源。
+  「投顧在講＋圖表也在畫」是一票不是兩票，`verify.py` 會對 `resonance` 節實際計算獨立聲音數。
+  這是 `events` 禁令的同型問題，第三次踩到同一個坑了（`events`、然後是圖表庫）：
+  **每接一個新來源，第一個要問的問題永遠是「它的上游是誰」。**
+- **監控庫 2026-08-04 改版且不可換算。** 六維 `D1`–`D6` → 三層 `L1`/`L2`/`L3`，
+  分群邏輯不同（主題 vs 資料更新頻率），`indicators` 的 id 也全換。
+  `history` 舊筆保留 D 鍵，算變動時基準只能取同架構的最早一筆。
+  `quant.schemaVer` 與 `index.json` 的 `quantVer` 就是用來標這條線的，漏寫會 FAIL。
+- **`verify.py` 是發布前檢查，不是歷史稽核工具。** 拿舊期回頭驗今天的監控資料一定會 FAIL
+  （指標 id 退役、架構改版），那不代表那一期當時是錯的。腳本的錯誤訊息已同時說明兩種情況。
 
 ---
 
