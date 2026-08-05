@@ -69,7 +69,7 @@ git push -u origin main
 > 每次觸發都是全新 session，所以 prompt 必須完整、獨立、不依賴任何對話記憶。
 
 ```
-你要產出「主題匯流訊號報」的新一期——把三個知識庫做跨庫比對，找出共振、背離、裂縫與早期訊號。
+你要產出「主題匯流訊號報」的新一期——把四個知識庫做跨庫比對，找出共振、背離、裂縫與早期訊號。
 產出不是資訊，是訊號的合成。讀起來像「本週新聞回顧」就是做失敗了。
 全程繁體中文（台灣用語）。完整規格見 repo 內的 AGENT_BRIEF.md，開工前先完整讀它。
 本 prompt 只是流程骨架；門檻、字數、格式、禁令一律以 AGENT_BRIEF.md 為準。
@@ -79,27 +79,41 @@ git push -u origin main
   git clone --depth 1 https://github.com/GunDamnBoy/advisory-knowledge-hub adv
   git clone --depth 1 https://github.com/GunDamnBoy/podcast-knowledge-digest pod
   git clone --depth 1 https://github.com/GunDamnBoy/ai-bubble-monitor bub
+  git clone --depth 1 https://github.com/GunDamnBoy/chart-of-the-day cotd
   讀 site/AGENT_BRIEF.md（全部）與 site/data/index.json
   （看上一期是第幾期、講了什麼，並抄下上一期的 watch 清單，第 4 步要驗收）。
-  敘事側取過去 7 個日曆天；量化側取 bub/data.json 的 history 全部，
-  「本期變動」＝頂層 dims 現值 − history 第一筆（是對現值，不是對 history 最後一筆；
-  監控庫盤後更新時 history 會落後一格，寫錯會被 verify.py 判 FAIL）。
+  敘事側（adv／pod／cotd）取過去 7 個日曆天；量化側取 bub/data.json 的 history 全部，
+  「本期變動」＝頂層 dims 現值 − 同架構最早一筆（見下方 v2 警告，不可跨改版相減）。
   三庫日期不會對齊——投顧有週日更新、節目只有工作日、監控只有交易日。
   這是正常的，不要試圖對齊。
   缺天正常，如實記下實際涵蓋範圍寫進 range（range 記錄實際拿到的，不是 7 天窗口本身）。
   ⚠️ 樣本不足的處置：若投顧側 < 3 天或節目側 < 2 天，必須在 about.run 註明樣本偏薄，
-     且共振判定要保守（樣本薄時容易把巧合當共振）。
-     投顧庫目前只保留 3 天封存檔，所以這個分支幾乎每期都會踩到，不要當成例外。
+     且共振判定要保守。投顧庫目前只保留 3 天封存檔，這個分支幾乎每期都會踩到。
+     每日五圖 2026-08-05 才上線，天數少於 3 天時「圖表側寫」節只列可用的，不要硬湊五張。
+  ⚠️ 零新增資料就不要產期：若四庫資料與上一期完全相同（同一天內重跑、或來源都還沒更新），
+     停下來，在交付訊息寫明「本次未產期」與各庫的實際最新日期，不寫任何檔案。
+     要產就得覆寫既有單期檔或虛報日期，兩條都是壞的。這不是失敗，是設計。
 
 第 2 步：壓縮成摘要層（寫 Python，不要把原始 JSON 讀進上下文）
   adv → adv.txt：每卡一行「{★if deep}({src}/{tag}) {title} || {bullets[0] 前 110 字}」，
                  依日期與 group 分層，保留每日 headline 與 overview.snap。目標 40–60K 字。
   pod → pod.txt：每集三行（▸{show}｜{title} / 摘要前 420 字 / 每條 takeaway 的 title），
                  完整保留每日 crossCut（pod 側最濃縮的部分，不可省略）。目標 12–20K 字。
-  bub → bub.txt：composite ＋ 六維現值與變動 ＋ 21 項指標（含 zone/score/asof）
-                 ＋ stage 全文與 checklist ＋ tw ＋ events。這份很小，可直接讀。
+  bub → bub.txt：composite ＋ 三層現值與變動 ＋ quadrant ＋ triggers ＋ 22 項指標
+                 （含 zone/score/asof）＋ stage 全文與 checklist ＋ tw ＋ events。很小，可直接讀。
+  cotd → cotd.txt：每張圖六行（▸{slot}｜{theme}｜{title} / subtitle / takeaway / so_what /
+                 reading 全文 / watch 與 tags），加每日 headline＋standfirst 與 about.qa_flags。
+                 ⚠️ 絕對不要納入 series 與 option——那是單日 100KB 裡的 96KB，且無判讀價值。
+                 需要數字時從 takeaway／reading 取；真要自己算就讀 series 用程式算，只留結果。
+                 目標 8–15K 字。
   超過目標大小就縮 body 截斷長度，不要減少卡片則數——覆蓋率比細節重要。
   注意 pod 的 takeaways/sections/meta 是字串化的 Python list，要 ast.literal_eval。
+
+  ⚠️ 監控庫 v2 警告：ai-bubble-monitor 於 2026-08-04 由六維 D1–D6 改為三層 L1/L2/L3
+     （L1 市場與情緒 0.35／L2 資金與信用 0.35／L3 基本面兌現 0.30），並新增 quadrant 與
+     triggers，indicators 也由 21 項換成 22 項、id 全換。六維與三層的分群邏輯不同
+     （一個按主題、一個按資料更新頻率），**禁止互相映射**。
+     history 內 08-03 以前的舊筆仍是 D1–D6，算變動時基準只能取與現值同架構的最早一筆。
 
 第 3 步：兩個子代理平行萃取敘事側（必須平行、必須互相看不到對方的檔案）
   這是正確性問題不是效率問題：同一個上下文讀完兩庫，會在後讀的那庫尋找前一庫講過的東西，
@@ -109,19 +123,33 @@ git push -u origin main
   子代理 B 讀 pod.txt → 8–12 個主題（核心主張、講者分歧最重要、出現強度、2–4 條逐字佐證）
            ＋「podcast 已在講但新聞沒跟上的事」5–8 條
   兩者都要求：佐證逐字取自檔案，寧可少寫也不要編。
+  ⚠️ 不要為 cotd 派第三個子代理。圖表庫的選題來自投顧庫，獨立萃取「主題」只會複述
+     投顧側已有的東西，平白多一份會製造假共振的材料。它有價值的是數字，
+     而數字要精確可回查，正是不該被另一個模型壓縮的東西——由主線自己讀。
 
 第 4 步：主線自己合成（不要外包）。順序有講究——
-  先自己讀 bub.txt 把六維變動攤開，再拿兩份敘事主題去對。
+  先自己讀 bub.txt 與 cotd.txt 把量化面攤開，再拿兩份敘事主題去對。
   反過來做會讓你只找得到「指標支持敘事」的部分，找不到背離——
   而背離是這套系統唯一無可取代的產出。
-  章節固定六節（詳見 brief 第 3.0 節）：
+  章節固定七節（詳見 brief 第 3.0 節）：
     零 量化底盤（外殼渲染 quant）／一 三方共振 resonance／二 關鍵背離 divergence／
-    三 台股 taiwan／四 單邊訊號 single／五 下週該盯什麼 watch／六 回饋 feedback
-  sections 必須恰為 4 節（一～四），編號寫在各節自己的 title 裡，verify.py 會擋。
+    三 台股 taiwan／四 圖表側寫 charts／五 單邊訊號 single／
+    六 下週該盯什麼 watch／七 回饋 feedback
+  sections 必須恰為 5 節且 id 與順序為 resonance→divergence→taiwan→charts→single，
+  編號寫在各節自己的 title 裡，verify.py 會擋。
   「共識裂縫」沒有專屬章節，它是掛在 item 上的 tags 標籤。
   開頭「本期判斷」3 段，必須表態，不要寫「值得持續觀察」這種話。
   驗收上一期的 watch 清單：上期點名要盯的事，這期發生了嗎？跨過門檻了嗎？
   有結果的寫進本期 verdict。少了這條回圈，每期都是重新開始。
+
+  ⚠️ 計票規則：三方共振要的是三個獨立聲音——敘事新聞側（投顧＋圖表，合計一票）、
+     節目側、量化側。每日五圖的 about.upstream 就是投顧庫當日檔，選題同源，
+     所以「投顧在講＋圖表也在畫」是一票不是兩票。verify.py 會實際計算，不足三個直接 FAIL。
+
+  第四節「圖表側寫」的職責是數字落地：把其他庫用形容詞講的事，換成圖表庫算出來的具體數字
+  （「敘事說油價崩了」→「自 3/31 高點 −32.9%」）。證據只能取自圖表庫自行重製的數字，
+  選題本身不是證據——不要寫「圖表庫也關注這件事」。五張圖不必每張都寫，
+  挑能和其他庫對話的。圖表庫的 so_what 與其他庫矛盾時把矛盾寫出來，不要挑一邊。
 
   寫每一條時遵守 brief 第 5 節全部品質規則，其中最容易漏的：
   · 佐證一律逐字，不改寫不潤飾。引自 crossCut 的要標明「當日交叉觀察，引 ○○節目」，
@@ -129,39 +157,44 @@ git push -u origin main
   · 量化佐證要附欄位名並用 <code> 包住：寫
     「指標 <code>hyoas</code> = 2.84%、zone green、score 25.8」，
     不要寫「高收益債利差偏低」。verify.py 靠 <code> 抓 id 做存在性檢查。
-  · 量化佐證絕對不能取自 events——那是 Google News，用它會讓同一則新聞
-    在投顧側算一次、監控側再算一次，共振就是假的。只能取自 indicators/dims/stage/tw。
-    verify.py 會 FAIL。（events 只能拿來當哨兵，核對投顧側漏了什麼。）
+  · 量化佐證絕對不能取自 events——那是 Google News，用它會讓同一則新聞被數兩次。
+    只能取自 indicators/dims/stage/tw。verify.py 會 FAIL。
   · 背離那一節必須寫出裁判方法：用什麼數字、跨過什麼門檻就知道哪一邊對。
   · 單邊訊號只標記不判斷。用 list[] 而非 evidence[]，但一樣要逐字。
-  · 不要為了湊滿章節而硬掰。真的沒有背離就寫「本週三庫高度一致，這本身是訊號」。
-  · 不要重述新聞。每一條都要有「因為三庫都／只有一庫講，所以⋯⋯」這層推論。
-  · 數字打架就寫出來。三庫對同一數字有出入時，把出入本身當成發現，不要挑一個用。
+  · 不要為了湊滿章節而硬掰。真的沒有背離就寫「本週四庫高度一致，這本身是訊號」。
+  · 不要重述新聞。每一條都要有「因為幾個庫都／只有一庫講，所以⋯⋯」這層推論。
+  · 數字打架就寫出來。各庫對同一數字有出入時，把出入本身當成發現，不要挑一個用。
   · body 類欄位允許行內 HTML（verdict[]、cols[].body、call.body、list[].body、
     callout.body、watch[]、feedback[]、gaps[]、evidence[].t 可用 <b>/<code>/<br>）。
-  · 記錄資料缺口：缺天、各庫 index.json 的 updatedLabel 過期、指標 asof 落後、卡片數異常，
-    這四項每期都要查，一律寫進單期 JSON 的 gaps 欄位
+  · evidence[].s 的合法值：監控／投顧／節目／圖表。
+  · 記錄資料缺口：缺天、各庫 index.json 的 updatedLabel 過期、指標 asof 落後、卡片數異常、
+    每日五圖的 about.qa_flags，這五項每期都要查，一律寫進單期 JSON 的 gaps 欄位
     （不是只在交付訊息裡講——gaps 是 verify.py 的必備欄位，漏了會 FAIL）。
 
 第 5 步：寫檔（schema 見 brief 第 3 節，可參考 site/build_issue.py）
   site/data/YYYY-MM-DD.json ← 本期全文
-  site/data/index.json      ← 加入本期，含 composite / dims 六維 / twHeat / stage 快照
-                               （這是跨期趨勢圖的唯一資料來源，每期都必須寫齊；
-                                 D1/D2/D3/D6 目前不繪製但仍要寫，之後換指標才有歷史）
+    quant 必須有 schemaVer:"v2"、quadrant{heat,support,regime}、dims 為 L1/L2/L3 三層。
+  site/data/index.json      ← 加入本期，含 quantVer:"v2"、composite、dims 三層、
+                               quadrant{heat,support}、twHeat、stage 快照
+                               （這是跨期趨勢圖的唯一資料來源，每期都必須寫齊）
   updated / updatedLabel 填當下的實際發布時間，不是排程時刻 21:30。
-  不要改寫任何既有的 data/*.json，不要動 index.html 除非 schema 真的變了
-  （變了就是 brief 第 3 節、build_issue.py、index.html 三處一起改）。
+  不要改寫任何既有的 data/*.json。發布後才發現的問題寫進 index.json 該期的 errata 陣列，
+  外殼會渲染成黃色勘誤橫幅——原文一個字都不動，錯誤在旁邊講清楚。
+  不要動 index.html 除非 schema 真的變了（變了就是 brief 第 3 節、build_issue.py、
+  index.html、verify.py 的 CANON 四處一起改）。
 
 第 6 步：驗證（不可略過，跑在推送之前）
   用 repo 內現成的 verify.py，不要自己重寫一支：
     python3 site/verify.py site/data/YYYY-MM-DD.json \
-      --adv adv.txt --pod pod.txt --bub bub/data.json
-  ⚠️ --bub 吃的是原始 bub/data.json，不是第 2 步壓縮出來的 bub.txt。
-  ⚠️ 三個路徑參數一個都不能省：省略時該批檢查會被跳過，而跳過不算 FAIL。
+      --adv adv.txt --pod pod.txt --cotd cotd.txt --bub bub/data.json
+  ⚠️ --bub 吃的是原始 bub/data.json，不是第 2 步壓縮出來的 bub.txt；
+     --cotd 則是壓縮過的 cotd.txt。
+  ⚠️ 四個路徑參數一個都不能省：省略時該批檢查會被跳過，而跳過不算 FAIL。
      「沒有 FAIL」不等於「檢查有跑」。缺參數時 verify.py 會回傳 exit 2 並印黃燈，
      看到黃燈就是還不能發布。
-  它檢查六件事：必備欄位與章節數、index.json 量化快照、敘事側逐字回查（含 list[]）、
-  量化側欄位名存在性、六維現值與變動 vs history、量化佐證未取自 events。
+  它檢查七件事：必備欄位與章節結構、index.json 量化快照（含 quantVer/quadrant）、
+  敘事側逐字回查（含 list[]）、共振的來源獨立性、量化側欄位名存在性、
+  層／維現值與變動 vs history、量化佐證未取自 events。
   任何一項 FAIL 就不要發布——回去修正該條引用或刪除它，重跑到全部通過。
   若動過 index.html，另外抽出 <script> 區塊跑 node --check。
 
