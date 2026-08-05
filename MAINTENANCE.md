@@ -106,7 +106,8 @@ git push -u origin main
                  reading 全文 / watch 與 tags），加每日 headline＋standfirst 與 about.qa_flags。
                  ⚠️ 絕對不要納入 series 與 option——那是單日 100KB 裡的 96KB，且無判讀價值。
                  需要數字時從 takeaway／reading 取；真要自己算就讀 series 用程式算，只留結果。
-                 目標 8–15K 字。
+                 目標 8–15K 字。單日判讀約 2,400 字，七天滿載會超出上限；
+                 超出時先截 reading（保留前 300 字），takeaway／so_what 一律保留全文。
   超過目標大小就縮 body 截斷長度，不要減少卡片則數——覆蓋率比細節重要。
   注意 pod 的 takeaways/sections/meta 是字串化的 Python list，要 ast.literal_eval。
 
@@ -158,6 +159,8 @@ git push -u origin main
   · 量化佐證要附欄位名並用 <code> 包住：寫
     「指標 <code>hyoas</code> = 2.84%、zone green、score 25.8」，
     不要寫「高收益債利差偏低」。verify.py 靠 <code> 抓 id 做存在性檢查。
+    合法欄位名＝指標 id ＋ 台股項目 id ＋ stage／composite／twheat／quadrant／heat／support
+    ＋ 維度 id（兩代並存：v1 的 d1–d6、v2 的 l1–l3）。
   · 量化佐證絕對不能取自 events——那是 Google News，用它會讓同一則新聞被數兩次。
     只能取自 indicators/dims/stage/tw。verify.py 會 FAIL。
   · 背離那一節必須寫出裁判方法：用什麼數字、跨過什麼門檻就知道哪一邊對。
@@ -167,22 +170,26 @@ git push -u origin main
   · 數字打架就寫出來。各庫對同一數字有出入時，把出入本身當成發現，不要挑一個用。
   · body 類欄位允許行內 HTML（verdict[]、cols[].body、call.body、list[].body、
     callout.body、watch[]、feedback[]、gaps[]、evidence[].t 可用 <b>/<code>/<br>）。
-  · evidence[].s 的合法值：監控／投顧／節目／圖表。
+  · evidence[].s 的合法值只有四個：監控／投顧／節目／圖表。打錯字 verify.py 會 FAIL。
   · 記錄資料缺口：缺天、各庫 index.json 的 updatedLabel 過期、指標 asof 落後、卡片數異常、
     每日五圖的 about.qa_flags，這五項每期都要查，一律寫進單期 JSON 的 gaps 欄位
     （不是只在交付訊息裡講——gaps 是 verify.py 的必備欄位，漏了會 FAIL）。
+    注意圖表庫的 index.json 沒有 updatedLabel，改看 updated 與 window.data_asof。
 
-第 5 步：寫檔（schema 見 brief 第 3 節，可參考 site/build_issue.py）
+第 5 步：寫檔（schema 見 brief 第 3 節）
   site/data/YYYY-MM-DD.json ← 本期全文
-    quant 必須有 schemaVer:"v2"、quadrant{heat,support,regime}、dims 為 L1/L2/L3 三層。
+    quant 必須有 schemaVer:"v2"、note、quadrant{heat,support,regime}、dims 為 L1/L2/L3 三層。
+    quadrant 的 heat ＝（L1＋L2）／2、support ＝ 100 − L3，直接取監控庫的值不要自己算。
   site/data/index.json      ← 加入本期，含 quantVer:"v2"、composite、dims 三層、
                                quadrant{heat,support}、twHeat、stage 快照
                                （這是跨期趨勢圖的唯一資料來源，每期都必須寫齊）
   updated / updatedLabel 填當下的實際發布時間，不是排程時刻 21:30。
   不要改寫任何既有的 data/*.json。發布後才發現的問題寫進 index.json 該期的 errata 陣列，
   外殼會渲染成黃色勘誤橫幅——原文一個字都不動，錯誤在旁邊講清楚。
+  ⚠️ site/build_issue.py 的內容停在第 001 期（v1 六維、4 節），**不要照抄它的結構**，
+     它只示範寫檔機制。現行 schema 一律以 AGENT_BRIEF.md 第 3 節為準。
   不要動 index.html 除非 schema 真的變了（變了就是 brief 第 3 節、build_issue.py、
-  index.html、verify.py 的 CANON 四處一起改）。
+  index.html、verify.py 四處一起改）。
 
 第 6 步：驗證（不可略過，跑在推送之前）
   用 repo 內現成的 verify.py，不要自己重寫一支：
@@ -208,8 +215,9 @@ git push -u origin main
   退路：若連不到本機，改用 SendUserFile 附上本期 JSON 與 index.json，
         並明確告知使用者需要手動放進 repo——不要靜靜地跳過發布。
   在訊息裡寫三行：本期最重要的判斷、上一期 watch 清單的驗收結果、發現的資料缺口。
-  同時附上線上網址（帶 cache-buster），並確認頁面上的期別按鈕數量與跨期趨勢的點數，
-  而不只是看最新一期的日期。
+  同時附上線上網址（帶 cache-buster），並確認頁面上的期別按鈕數量與跨期趨勢的點數。
+  注意第 002 期時 v2 那 5 格趨勢一格都不會出現（外殼要 ≥2 個點才畫線，
+  而 v2 期別當時只有 1 期），這是正常的，不是故障。
 ```
 
 ---
