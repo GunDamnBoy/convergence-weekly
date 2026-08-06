@@ -298,9 +298,16 @@ def main():
     issues.sort(key=lambda x: x["date"], reverse=True)
     # 第 001 期是手動在 18:00 產出的，所以這裡寫死 18:00——它記錄的是「本期實際發布時間」，
     # 不是排程時刻（排程是每週日 21:30）。每週的排程任務要用當下的實際時間填這兩欄。
+    #
+    # ⚠️ 但本函式是「整份重寫 index.json」，所以 --force 重建舊期時這兩個寫死的值
+    # 會把時間戳往回推。只有在本期就是最新一期時才覆寫，否則沿用檔案裡原本的值。
+    prev_idx = {}
+    if os.path.exists(idx_path):
+        prev_idx = json.load(io.open(idx_path, encoding="utf-8"))
+    is_newest = issues and issues[0]["date"] == DATE
     idx = {
-        "updated": "2026-08-03T18:00:00+08:00",
-        "updatedLabel": "8/3 18:00",
+        "updated": "2026-08-03T18:00:00+08:00" if is_newest else prev_idx.get("updated", ""),
+        "updatedLabel": "8/3 18:00" if is_newest else prev_idx.get("updatedLabel", ""),
         "count": len(issues),
         "issues": issues
     }

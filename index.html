@@ -134,6 +134,18 @@ table.bars tr:hover .fill{background:var(--red-d)}
 .sm svg{display:block;width:100%;height:34px;margin-top:6px;overflow:visible}
 .sm .v2,.csub .v2{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.04em;
   padding:1px 4px;border-radius:3px;background:var(--red);color:#fff;vertical-align:1px}
+.trig{list-style:none;margin:8px 0 0;padding:0;font-size:13px}
+.trig li{display:flex;align-items:baseline;gap:9px;padding:6px 0;
+  border-bottom:1px solid var(--line);color:var(--mid)}
+.trig li:last-child{border-bottom:0}
+.trig .dot{flex:none;width:7px;height:7px;border-radius:50%;
+  background:var(--line);border:1px solid var(--mid)}
+.trig li.on .dot{background:var(--red);border-color:var(--red)}
+.trig li.on{color:var(--ink);font-weight:600}
+.trig .nm{flex:1;min-width:0}
+.trig .vl{font-variant-numeric:tabular-nums;white-space:nowrap}
+.trig .as{flex:none;font-size:11px;color:var(--lite);white-space:nowrap}
+@media(max-width:640px){.trig .as{display:none}}
 .quad{display:flex;gap:22px;align-items:baseline;flex-wrap:wrap;margin-top:6px}
 .quad span{font-size:12.5px;color:var(--mid)}
 .quad b{font-size:22px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;
@@ -215,7 +227,8 @@ function renderTrend(index){
     {n:'L2 資金與信用', get:i => i.dims && i.dims.L2},
     {n:'L3 基本面兌現', get:i => i.dims && i.dims.L3},
     {n:'象限 · 熱度', get:i => i.quadrant && i.quadrant.heat},
-    {n:'象限 · 支撐', get:i => i.quadrant && i.quadrant.support}
+    {n:'象限 · 支撐', get:i => i.quadrant && i.quadrant.support},
+    {n:'觸發器已亮', get:i => i.trigLit}
   ];
   const v2iss = iss.filter(i => i.quantVer === 'v2');
   const card = (d, rows, tag) => {
@@ -273,6 +286,14 @@ function renderQuant(q){
         <span><b>${q.quadrant.support.toFixed(1)}</b> 支撐</span>
         <span class="rg">${q.quadrant.regime}</span>
       </div>` : ''}
+    ${q.triggers && q.triggers.length ? `<div class="ctitle">觸發器：已定義門檻的客觀清單</div>
+      <div class="csub">這幾條是監控庫預先定義好的門檻，跨過就是跨過，不需要再解釋。
+        背離那一節的「裁判方法」優先引用這裡；上一期 <b>下週該盯什麼</b> 的驗收也看這裡。
+        目前 <b>${q.triggers.filter(t => t.state).length} / ${q.triggers.length}</b> 已觸發。</div>
+      <ul class="trig">${q.triggers.map(t => `<li class="${t.state ? 'on' : ''}">
+        <span class="dot"></span><span class="nm">${t.name}</span>
+        <span class="vl">${t.value ?? ''}</span>
+        <span class="as">${t.asof || ''}</span></li>`).join('')}</ul>` : ''}
     <div class="ctitle">${v2 ? '三個層次（依資料更新頻率分層）' : '六個維度'}</div>
     <div class="csub">數值為 0–100 熱度，越高越熱。長條長度即為數值；右欄為本期變動。${
       v2 ? '' : '<br><b>本期為 2026-08-04 改版前的舊架構（六維）</b>，與之後的三層不可直接比較。'}</div>

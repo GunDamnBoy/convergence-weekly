@@ -106,11 +106,23 @@ if idx:
             qd = i.get("quadrant")
             if not isinstance(qd, dict) or not {"heat", "support"} <= set(qd):
                 miss.append("quadrant{heat,support}")
+            if i.get("trigLit") is None:
+                miss.append("trigLit（觸發器已亮數，趨勢圖第八格）")
         if miss: broken.append(f"{i.get('date')}：缺 {miss}")
     if broken:
         fail("index.json 有期別缺量化快照——跨期趨勢圖會斷：\n        " + "\n        ".join(broken))
     else:
         ok(f"全部 {len(idl)} 期都帶有完整量化快照（趨勢圖可畫）")
+
+    # errata：既有單期檔永不改寫，事後發現的問題只能掛這裡，
+    # 所以它是唯一會被 build_issue.py --force 洗掉的東西，值得有人看著
+    for i in idl:
+        e = i.get("errata")
+        if e is not None and (not isinstance(e, list) or not all(isinstance(x, str) for x in e)):
+            fail(f"{i.get('date')} 的 errata 必須是字串陣列")
+    n_err = sum(len(i.get("errata", [])) for i in idl)
+    if n_err:
+        ok(f"勘誤共 {n_err} 條（掛在 index.json，單期檔原文未改寫）")
 
     # 每期都指得到實體檔
     for i in idl:
@@ -151,6 +163,14 @@ for d in issues:
         qd = q.get("quadrant")
         if not isinstance(qd, dict) or not {"heat", "support", "regime"} <= set(qd):
             fail(f"{tag} v2 的 quant 缺 quadrant{{heat,support,regime}}")
+        tg = q.get("triggers")
+        if not isinstance(tg, list) or not tg:
+            fail(f"{tag} v2 的 quant 缺 triggers[]")
+        else:
+            lit = sum(1 for x in tg if x.get("state"))
+            me = next((i for i in globals().get("idl", []) if i.get("date") == tag), None)
+            if me is not None and me.get("trigLit") is not None and int(me["trigLit"]) != lit:
+                fail(f"{tag} index 的 trigLit={me['trigLit']} ≠ 單期實際已觸發數 {lit}")
     # 章節 id 與順序（外殼的尾段編號依長度算，但 id 順序被鎖死）
     sec_ids = [s.get("id") for s in d.get("sections", [])]
     if sec_ids not in (CANON, LEGACY):

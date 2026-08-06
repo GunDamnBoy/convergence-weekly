@@ -7,7 +7,7 @@
     python3 verify.py data/2026-08-03.json --adv /path/adv.txt --pod /path/pod.txt \
         --cotd /path/cotd.txt --bub /path/bub/data.json
 
-檢查八件事：
+檢查九件事：
  1. 單期 JSON 與 index.json 可解析、必備欄位齊全、章節 id 與順序合規
  2. index.json 帶有本期的量化快照（跨期趨勢圖的唯一資料來源，漏了圖會斷）
  3. 敘事側每一條 evidence 都能在 adv.txt / pod.txt / cotd.txt 裡逐字回查到
@@ -19,6 +19,8 @@
     「投顧在講＋圖表也在畫」是同一則新聞被數兩次，不是兩個獨立來源。
  4. 量化側每一條 evidence 引用的指標 id 確實存在於 bub 的 indicators / tw / stage
  5. 層／維現值與變動 vs history（變動＝現值 − **同架構最早一筆**，不跨改版相減）
+ 5.5 觸發器對帳：quant.triggers 的 id 與 state 必須與監控庫一致，
+    index.json 的 trigLit（已觸發數）也要對得上。
  6. 量化佐證不得取自 events——那是 Google News，會造成同一則新聞被數兩次。
     這一項是 FAIL，不是 warn。
 
@@ -79,6 +81,14 @@ def main():
         qd = q.get('quadrant')
         if not isinstance(qd, dict) or not {'heat','support','regime'} <= set(qd):
             fails.append("v2 的 quant 缺 quadrant{heat,support,regime}")
+        tg = q.get('triggers')
+        if not isinstance(tg, list) or not tg:
+            fails.append("v2 的 quant 缺 triggers[]——背離節的裁判方法要優先引用它，"
+                         "上一期 watch 的驗收也靠它")
+        else:
+            for x in tg:
+                if not {'id','name','state'} <= set(x):
+                    fails.append(f"triggers 條目缺 id/name/state：{x}")
     # 章節：v0.5 起加入「圖表側寫」成為 5 節；第 001 期是 4 節，兩者都要能過。
     # 外殼的尾段編號已改為依 sections 長度動態計算，所以這裡只驗 id 與順序。
     CANON = ['resonance', 'divergence', 'taiwan', 'charts', 'single']
@@ -97,7 +107,7 @@ def main():
         fails.append("index.json 沒有本期")
     else:
         need = ['composite','dims','twHeat','stage','file','issue','label','short','headline']
-        if v2: need += ['quantVer','quadrant']
+        if v2: need += ['quantVer','quadrant','trigLit']
         for k in need:
             if k not in me: fails.append(f"index 本期缺 {k}（跨期趨勢圖會斷）")
         if set(me.get('dims', {})) != set(want_ids):
@@ -237,6 +247,23 @@ def main():
                     fails.append(f"{dim['id']} 變動 {dim['delta']} ≠ 實算 {delta}")
             print(f"[{'ok ' if len(fails) == n1 else 'FAIL'}] "
                   f"層／維現值與變動 vs history（基準 {first['date']}，同架構 {len(same)} 筆）")
+
+        # 觸發器：id 必須存在於監控庫，state 與 index 的 trigLit 要對得上
+        bt = b.get('triggers', [])
+        if q.get('triggers') and bt:
+            n2 = len(fails)
+            bmap = {x['id']: x for x in bt}
+            for x in q['triggers']:
+                if x['id'] not in bmap:
+                    fails.append(f"triggers 的 {x['id']} 不存在於監控庫")
+                elif int(x.get('state', 0)) != int(bmap[x['id']].get('state', 0)):
+                    fails.append(f"triggers 的 {x['id']} state={x.get('state')} "
+                                 f"≠ 監控庫 {bmap[x['id']].get('state')}")
+            lit = sum(1 for x in q['triggers'] if x.get('state'))
+            if me and me.get('trigLit') is not None and int(me['trigLit']) != lit:
+                fails.append(f"index 本期 trigLit={me['trigLit']} ≠ 實際已觸發數 {lit}")
+            print(f"[{'ok ' if len(fails) == n2 else 'FAIL'}] "
+                  f"觸發器對帳（{lit}/{len(q['triggers'])} 已觸發）")
 
         # 量化佐證不得出自 events：那是 Google News，用它會讓同一則新聞
         # 被當成兩個獨立來源，「三方共振」就是假的。這是 FAIL，不是 warn。
