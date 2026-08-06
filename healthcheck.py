@@ -90,12 +90,22 @@ if idx:
         fail(f"期號不連續：{nums}")
 
     # ★ 跨期趨勢圖的命脈：每期都必須有量化快照
+    # 監控庫 2026-08-04 由六維 D1–D6 改為三層 L1–L3，兩代並存：
+    # 有 quantVer=='v2' 的期別驗三層＋quadrant，沒有的是舊期驗六維。
     need = ("composite", "dims", "twHeat", "stage")
     broken = []
     for i in idl:
+        v2 = i.get("quantVer") == "v2" or set(i.get("dims", {})) == {"L1", "L2", "L3"}
         miss = [k for k in need if k not in i]
-        if set(i.get("dims", {})) != {"D1", "D2", "D3", "D4", "D5", "D6"}:
-            miss.append("dims 六維不完整")
+        want = {"L1", "L2", "L3"} if v2 else {"D1", "D2", "D3", "D4", "D5", "D6"}
+        if set(i.get("dims", {})) != want:
+            miss.append(f"dims 應為 {sorted(want)}")
+        if v2:
+            if i.get("quantVer") != "v2":
+                miss.append("quantVer（外殼靠它決定哪幾期能連成一條線）")
+            qd = i.get("quadrant")
+            if not isinstance(qd, dict) or not {"heat", "support"} <= set(qd):
+                miss.append("quadrant{heat,support}")
         if miss: broken.append(f"{i.get('date')}：缺 {miss}")
     if broken:
         fail("index.json 有期別缺量化快照——跨期趨勢圖會斷：\n        " + "\n        ".join(broken))
@@ -119,22 +129,39 @@ if idx:
             ok(f"updated 與最新一期（{newest}）一致")
 
 # ── 4. 單期內容規範 ────────────────────────────────────────────
-REQ = ("date", "issue", "label", "range", "headline", "coverage",
+REQ = ("date", "issue", "label", "stamp", "range", "headline", "coverage",
        "verdict", "quant", "sections", "watch", "gaps", "about")
+CANON = ["resonance", "divergence", "taiwan", "charts", "single"]   # v0.5 起
+LEGACY = ["resonance", "divergence", "taiwan", "single"]            # v0.4 以前
+SRC_OK = ("監控", "投顧", "節目", "圖表")
 for d in issues:
     tag = d.get("date", "?")
     miss = [k for k in REQ if k not in d]
     if miss: fail(f"{tag} 缺欄位 {miss}")
     q = d.get("quant", {})
-    if len(q.get("dims", [])) != 6:
-        fail(f"{tag} quant.dims 不是 6 維")
-    # 佐證來源標籤只能是這三個
+    # 依版本各驗各的，不做換算（六維與三層的分群邏輯不同）
+    v2 = q.get("schemaVer") == "v2" or (not q.get("schemaVer") and len(q.get("dims", [])) == 3)
+    want_ids = ["L1", "L2", "L3"] if v2 else ["D1", "D2", "D3", "D4", "D5", "D6"]
+    got_ids = [x.get("id") for x in q.get("dims", [])]
+    if got_ids != want_ids:
+        fail(f"{tag} quant.dims 應為 {want_ids}（{'v2 三層' if v2 else 'v1 六維'}），實際 {got_ids}")
+    if v2:
+        if "schemaVer" not in q:
+            fail(f"{tag} v2 的 quant 必須明寫 schemaVer:'v2'")
+        qd = q.get("quadrant")
+        if not isinstance(qd, dict) or not {"heat", "support", "regime"} <= set(qd):
+            fail(f"{tag} v2 的 quant 缺 quadrant{{heat,support,regime}}")
+    # 章節 id 與順序（外殼的尾段編號依長度算，但 id 順序被鎖死）
+    sec_ids = [s.get("id") for s in d.get("sections", [])]
+    if sec_ids not in (CANON, LEGACY):
+        fail(f"{tag} sections 的 id 與順序不合規：{sec_ids}（應為 {CANON} 或舊期 {LEGACY}）")
+    # 佐證來源標籤只能是這四個——打錯字會讓共振計票靜靜少一票
     bad = set()
     for s in d.get("sections", []):
         for it in s.get("items", []):
             for e in it.get("evidence", []):
-                if e.get("s") not in ("監控", "投顧", "節目"): bad.add(e.get("s"))
-    if bad: warn(f"{tag} 出現非預期的佐證來源標籤：{bad}")
+                if e.get("s") not in SRC_OK: bad.add(e.get("s"))
+    if bad: fail(f"{tag} 出現非法的佐證來源標籤：{bad}（合法值只有 {list(SRC_OK)}）")
 if issues:
     ok(f"單期內容規範檢查完成（{len(issues)} 期）")
 
