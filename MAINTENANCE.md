@@ -189,8 +189,8 @@ git push -u origin main
   外殼會渲染成黃色勘誤橫幅——原文一個字都不動，錯誤在旁邊講清楚。
   ⚠️ site/build_issue.py 的內容停在第 001 期（v1 六維、4 節），**不要照抄它的結構**，
      它只示範寫檔機制。現行 schema 一律以 AGENT_BRIEF.md 第 3 節為準。
-  不要動 index.html 除非 schema 真的變了（變了就是 brief 第 3 節、build_issue.py、
-  index.html、verify.py 四處一起改）。
+  不要動 index.html 除非 schema 真的變了（變了就是 brief 第 3 節、index.html、
+  verify.py 與 healthcheck.py 三處一起改；build_issue.py 已凍結，不在這一組裡）。
 
 第 6 步：驗證（不可略過，跑在推送之前）
   用 repo 內現成的 verify.py，不要自己重寫一支：
