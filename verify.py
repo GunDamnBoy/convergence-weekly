@@ -7,11 +7,13 @@
     python3 verify.py data/2026-08-03.json --adv /path/adv.txt --pod /path/pod.txt \
         --cotd /path/cotd.txt --bub /path/bub/data.json
 
-檢查七件事：
+檢查八件事：
  1. 單期 JSON 與 index.json 可解析、必備欄位齊全、章節 id 與順序合規
  2. index.json 帶有本期的量化快照（跨期趨勢圖的唯一資料來源，漏了圖會斷）
  3. 敘事側每一條 evidence 都能在 adv.txt / pod.txt / cotd.txt 裡逐字回查到
     （含 list[] 的條目——單邊訊號整節用 list 而非 evidence，一樣要逐字）
+ 3.4 evidence[].s 只能是 監控／投顧／節目／圖表 四者之一。
+    打錯字會讓計票靜靜少一票，而錯誤訊息還會誤導成「來源不夠獨立」，所以先擋下來。
  3.5 標為「共振」的 item 真的有三個獨立來源。
     **投顧與圖表計為同一票**——每日五圖的選題取自 advisory-knowledge-hub，
     「投顧在講＋圖表也在畫」是同一則新聞被數兩次，不是兩個獨立來源。
@@ -170,7 +172,7 @@ def main():
     quant_ev = [e for _, e in ev if e.get('s') == '監控']
     if not (a.bub and os.path.exists(a.bub)):
         warns.append("未提供 --bub，跳過量化側檢查")
-        skipped.append("量化側存在性／六維變動／events 檢查")
+        skipped.append("量化側存在性／層維變動／events 檢查")
     else:
         b = json.load(open(a.bub, encoding='utf-8'))
         # 合法的量化欄位名＝指標 id（動態讀，v2 為 22 項）＋ 台股項目 id

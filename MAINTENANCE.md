@@ -39,9 +39,10 @@ git push -u origin main
    `mcp__scheduled-tasks__update_scheduled_task` 同步（taskId：`convergence-weekly`）。
    ⚠️ `prompt` 是**整份取代，不是局部編輯**——送出前確認所有段落都帶上了，漏掉的段落等於刪除。
 3. 在 brief 第 6 節加變更紀錄，**寫清楚為什麼改**，不只是改了什麼
-4. 動到單期 JSON schema 時，**這四處是一組**：brief 第 3 節、`build_issue.py`、
+4. 動到單期 JSON schema 時，**這三處是一組**：brief 第 3 節、
    `index.html`（`renderItem`／`renderQuant`／`renderTrend`／`renderErrata` 與章節編號計算）、
-   `verify.py`（必備欄位清單與 `CANON`）
+   `verify.py` 與 `healthcheck.py`（兩者的必備欄位清單與 `CANON`）。
+   ⚠️ `build_issue.py` **不在這一組裡**——它已凍結在第 001 期，刻意不追著改。
 5. 事故經過與被否決的選項寫本檔第 6 節
 
 ⚠️ **維護時讀不到實際生效的 prompt。**
@@ -85,7 +86,7 @@ git push -u origin main
   （看上一期是第幾期、講了什麼，並抄下上一期的 watch 清單，第 4 步要驗收）。
   敘事側（adv／pod／cotd）取過去 7 個日曆天；量化側取 bub/data.json 的 history 全部，
   「本期變動」＝頂層 dims 現值 − 同架構最早一筆（見下方 v2 警告，不可跨改版相減）。
-  三庫日期不會對齊——投顧有週日更新、節目只有工作日、監控只有交易日。
+  四庫日期不會對齊——投顧與圖表庫每天更新、節目只有工作日、監控只有交易日。
   這是正常的，不要試圖對齊。
   缺天正常，如實記下實際涵蓋範圍寫進 range（range 記錄實際拿到的，不是 7 天窗口本身）。
   ⚠️ 樣本不足的處置：若投顧側 ≤ 3 天或節目側 ≤ 2 天，必須在 about.run 註明樣本偏薄，
@@ -201,7 +202,7 @@ git push -u origin main
      只給其中一兩份會讓缺的那庫的佐證全部「查不到」而變成假 FAIL，所以缺一個就整批跳過。
      跳過不算 FAIL，但也不給綠燈——verify.py 會印黃燈並回傳 exit 2。
      「沒有 FAIL」不等於「檢查有跑」；看到黃燈就是還不能發布。
-  它檢查七件事：必備欄位與章節結構、index.json 量化快照（含 quantVer/quadrant）、
+  它檢查八件事：必備欄位與章節結構、evidence[].s 合法值、index.json 量化快照（含 quantVer/quadrant）、
   敘事側逐字回查（含 list[]）、共振的來源獨立性、量化側欄位名存在性、
   層／維現值與變動 vs history、量化佐證未取自 events。
   任何一項 FAIL 就不要發布——回去修正該條引用或刪除它，重跑到全部通過。
@@ -287,6 +288,26 @@ git push -u origin main
 ---
 
 ## 6. 事故與決策檔案
+
+### 2026-08-06（v0.5.1）｜v0.5 整支漏掉 healthcheck.py，因為清單本身是過期的
+
+v0.5 收尾後再叫子代理獨立複查，抓到一個會讓 8/9 那期誤報的洞：
+**`healthcheck.py` 完全沒跟上 v0.5。** 它有兩處硬驗六維（`D1`–`D6`），
+第 002 期一寫進 `L1`–`L3` 就會各噴一個 FAIL；佐證來源標籤也只認三個，
+每一條「圖表」佐證都會誤報 WARN；量化快照的必要欄位沒納入 `quantVer`／`quadrant`，
+v2 期別漏寫時它還是印 PASS，而外殼會直接把該期排除，五格 v2 趨勢靜靜斷掉。
+
+**為什麼會漏：** 因為它不在「三處一組」那份清單裡——而那份清單本身就是 v0.4 時代的。
+v0.5 動 schema 時照著清單改了 brief／`build_issue.py`／`index.html`，
+`verify.py` 是臨時想到才補的，`healthcheck.py` 從頭到尾沒被想起來。
+
+**修法不只是補那支腳本，而是修那份清單。** 現在的三處一組是：
+brief 第 3 節、`index.html`、**`verify.py` 與 `healthcheck.py`**；
+並明確把 `build_issue.py` 排除在外（它已凍結在第 001 期，刻意不追著改）。
+
+教訓與 v0.4 那則同型但更深一層：v0.4 學到「規則要寫在會被讀到的文件裡」，
+這次學到的是**連「哪些檔案是一組」這件事本身也會過期**，
+而它過期的時候不會有任何徵兆——照著清單改，改完還會覺得自己很完整。
 
 ### 2026-08-05（v0.5）｜第 001 期其實是 FAIL 的，但不改寫
 
