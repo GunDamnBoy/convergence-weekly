@@ -185,6 +185,11 @@ convergence-weekly/
 │                          它示範的是「怎麼寫檔、怎麼更新 index.json」這層機制
 │                          （含保留 errata、防覆寫閘門），那部分與版本無關仍然有效。
 │                          現行 schema 一律以本節為準
+├─ prepare.py            ← **備料**（每週第 1–2 步）：clone 四庫、產出四份摘要層、
+│                          印 PREP.md（涵蓋統計＋上期 watch＋triggers 狀態＋零新增判定）。
+│                          排程只跑它，不要自己寫摘要程式
+├─ make_index.py         ← **index 快照組裝**（第 5 步後半）：從單期 JSON 自動組
+│                          quantVer／quadrant／trigLit／updated，保留 errata
 ├─ verify.py             ← **發布前檢查**。每期必跑，不要自己重寫一支
 ├─ healthcheck.py        ← 維護用的唯讀健康檢查（跑在維護時，不在產出流程裡）
 ├─ AGENT_BRIEF.md        ← 本檔（規格）
@@ -343,29 +348,34 @@ convergence-weekly/
 
 ## 4. 執行管線
 
-### 第 1 步：取資料（程式）
-四庫 clone，取窗口內檔案。記錄實際涵蓋範圍。
-**同時 clone 本站台** `https://github.com/GunDamnBoy/convergence-weekly.git`，
-讀 `data/index.json` 看上一期是第幾期、以及上一期的 `watch[]` 清單。
+### 第 1–2 步：備料（跑 `prepare.py`，不要自己寫）
 
-### 第 2 步：壓縮成摘要層（程式，**不要把原始 JSON 讀進上下文**）
-- `adv.txt`：每卡一行 `{★if deep}({src}/{tag}) {title} || {bullets[0] 前 110 字}`，
-  依日期與 group 分層，保留每日 `headline` 與 `overview.snap`。目標 40–60K 字。
-- `pod.txt`：每集三行（`▸{show}｜{title}` / 摘要前 420 字 / 每條 takeaway 的 title），
-  **完整保留每日 `crossCut`**（這是 pod 側最濃縮的部分，不可省略）。目標 12–20K 字。
-- `bub.txt`：composite ＋ 三層現值與變動 ＋ `quadrant` ＋ `triggers` ＋ 22 項指標
-  （含 `zone`、`score`、`asof`）＋ `stage` 全文與 checklist ＋ `tw` ＋ `events`。這份很小，可直接讀。
-- `cotd.txt`：每張圖六行（`▸{slot}｜{theme}｜{title}` / `subtitle` / `takeaway` /
-  `so_what` / `reading` 全文 / `watch` 與 `tags`），加上每日 `headline`＋`standfirst`
-  與 `about.qa_flags`。
-  **絕對不要納入 `series` 與 `option`**——那是單日 100KB 裡的 96KB，而且沒有判讀價值。
-  需要數字時從 `takeaway`／`reading` 取（那裡本來就寫成可引用的句子），
-  真的要自己算就讀 `series` 用程式算，算完只留結果。目標 8–15K 字。
-  > 單日五張圖的判讀約 2,400 字，七天滿載約 17K，會超出上限。
-  > 超出時**先截 `reading`（保留前 300 字）**，`takeaway`／`so_what` 一律保留全文——
-  > 那兩欄才是拿來引用的，`reading` 是背景。截到 3 天以內時不必截。
+```bash
+git clone --depth 1 https://github.com/GunDamnBoy/convergence-weekly.git site
+python3 site/prepare.py --work work --site site
+```
 
-超過目標大小就縮 body 截斷長度，**不要減少卡片則數**——覆蓋率比細節重要。
+它做完取資料與壓縮兩步：clone 四庫、依下列規格產出 `work/adv.txt`／`pod.txt`／
+`bub.txt`／`cotd.txt`，並印出 `PREP.md`——涵蓋統計、各庫最新日期、
+**上一期 watch 清單全文**（第 4 步驗收用）、**triggers 狀態表**、樣本偏薄旗標。
+**exit 3 ＝ 四庫都沒有比上一期新的資料**，依 §2.1 不產期，直接進交付說明原因。
+
+主線接著只需要讀 `PREP.md` 與摘要層，**不要碰任何原始 JSON**。
+
+**摘要層規格**（＝ `prepare.py` 的實作規格；改這裡就要改它，反之亦然）：
+
+- `adv.txt`：每卡一行 `{★if deep}({src}/{tag}) {title} || {bullets[0] 截斷}`，
+  依日期與 group 分層，保留每日 `headline` 與 `overview.snap`。
+  目標 ≤60K 字；截斷自動下調 110→80→60→45，到底仍超標則接受並如實回報——
+  **不減卡片則數，覆蓋率比細節重要**（來源庫已擴編至 26 家，7 天可達 800+ 卡）。
+- `pod.txt`：每集三行（`▸{show}｜{title}` / 摘要截斷 / takeaway titles），
+  **完整保留每日 `crossCut`**（不可省略）。目標 ≤24K；摘要截斷自動下調 420→300→220。
+- `bub.txt`：composite ＋ 三層現值與變動（同架構基準）＋ `quadrant` ＋ `triggers`
+  ＋ 22 項指標（zone/score/asof）＋ `stage` 全文與 checklist ＋ `tw` ＋ `events`。
+- `cotd.txt`：每張圖六行（slot｜theme｜title / subtitle / takeaway / so_what /
+  reading / watch＋tags）＋ 每日 headline＋standfirst ＋ `qa_flags`。
+  **不含 `series` 與 `option`**（單日 100KB 裡的 96KB，無判讀價值）。
+  目標 ≤15K；超標先截 `reading` 300→200，`takeaway`／`so_what` 一律全文。
 
 ### 第 3 步：兩個子代理平行萃取敘事側（**必須平行、必須互相看不到對方的檔案**）
 理由：同一個上下文同時讀兩庫，會不自覺讓先讀的框住後讀的，「共振」就變成自我實現的預言。
@@ -397,11 +407,11 @@ convergence-weekly/
 ### 第 5 步：寫檔
 
 1. 寫 `data/YYYY-MM-DD.json`（**不得改寫任何既有單期檔**）
-2. 更新 `data/index.json`（**含該期量化快照**：`quantVer` / `composite` / `dims` 三層 /
-   `quadrant{heat,support}` / `twHeat` / `stage`）
-3. `updated` / `updatedLabel` 填**當下的實際發布時間**，不是排程時刻
-4. 不要動 `index.html`，除非 schema 真的變了（變了就是**四處**一起改：本節、
-   `build_issue.py`、`index.html`、`verify.py`——但 `build_issue.py` 已凍結，見第 3 節檔案樹）
+2. 跑 `python3 site/make_index.py site/data/YYYY-MM-DD.json`——
+   它自動組出快照（`quantVer`／`quadrant`／`trigLit`）、填當下實際發布時間、保留 `errata`。
+   **不要手工編輯 `index.json`。**
+3. 不要動 `index.html`，除非 schema 真的變了（變了就是三處一起改：本節、
+   `index.html`、`verify.py` 與 `healthcheck.py`；`build_issue.py` 已凍結不在組內）
 
 ### 第 6 步：驗證（不可略過，跑在推送之前）
 

@@ -41,7 +41,7 @@ D = os.path.join(REPO, "data")
 
 # ── 1. 檔案齊全 ────────────────────────────────────────────────
 for f in ["index.html", "data/index.json", "AGENT_BRIEF.md", "MAINTENANCE.md",
-          "build_issue.py", "verify.py"]:
+          "build_issue.py", "verify.py", "prepare.py", "make_index.py"]:
     p = os.path.join(REPO, f)
     ok(f"{f} 存在") if os.path.exists(p) else fail(f"{f} 不存在")
 
