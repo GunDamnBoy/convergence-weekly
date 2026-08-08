@@ -39,9 +39,32 @@ if not REPO:
 print(f"repo: {REPO}\n")
 D = os.path.join(REPO, "data")
 
+# ── --metrics：一鍵印出版本紀錄要填的度量（CHANGELOG.md 第 2 節）────────────
+if "--metrics" in sys.argv:
+    _b = open(os.path.join(REPO, "AGENT_BRIEF.md"), encoding="utf-8").read()
+    _m = open(os.path.join(REPO, "MAINTENANCE.md"), encoding="utf-8").read()
+    _pm = re.search(r"```\n(你要產出.*?)\n```", _m, re.S)
+    _p = _pm.group(1) if _pm else ""
+    _scripts = sorted(f for f in os.listdir(REPO) if f.endswith(".py"))
+    _vt = open(os.path.join(REPO, "verify.py"), encoding="utf-8").read()
+    _nchk = len(re.findall(r'print\(f?"\[\{?', _vt))
+    _head = ""
+    _hp = os.path.join(REPO, ".git", "refs", "heads", "main")
+    if os.path.exists(_hp): _head = open(_hp).read().strip()[:8]
+    print("度量（填進 CHANGELOG.md 第 2 節）")
+    print(f"  brief 字數            {len(_b):,}（{_b.count(chr(10))+1} 行）")
+    print(f"  prompt 字數           {len(_p):,}（{_p.count(chr(10))+1} 行）")
+    print(f"  ★ 每週必讀合計        {len(_b)+len(_p):,}")
+    print(f"  MAINTENANCE 字數      {len(_m):,}（維護者才讀，不計入每週成本）")
+    print(f"  腳本數                {len(_scripts)}　{' '.join(_scripts)}")
+    print(f"  verify 檢查批次       {_nchk}")
+    print(f"  目前 HEAD             {_head}（收工時填進版本索引的 commit 欄）")
+    sys.exit(0)
+
 # ── 1. 檔案齊全 ────────────────────────────────────────────────
 for f in ["index.html", "data/index.json", "AGENT_BRIEF.md", "MAINTENANCE.md",
-          "build_issue.py", "verify.py", "prepare.py", "make_index.py"]:
+          "build_issue.py", "verify.py", "prepare.py", "make_index.py",
+          "CHANGELOG.md"]:
     p = os.path.join(REPO, f)
     ok(f"{f} 存在") if os.path.exists(p) else fail(f"{f} 不存在")
 

@@ -194,6 +194,7 @@ convergence-weekly/
 ├─ healthcheck.py        ← 維護用的唯讀健康檢查（跑在維護時，不在產出流程裡）
 ├─ AGENT_BRIEF.md        ← 本檔（規格）
 ├─ MAINTENANCE.md        ← 維護說明、排程 prompt、事故紀錄
+├─ CHANGELOG.md          ← 逐版變更紀錄、度量趨勢、回溯要點（維護者才讀）
 └─ README.md
 ```
 
