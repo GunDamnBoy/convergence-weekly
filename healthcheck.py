@@ -59,6 +59,10 @@ if "--metrics" in sys.argv:
     print(f"  腳本數                {len(_scripts)}　{' '.join(_scripts)}")
     print(f"  verify 檢查批次       {_nchk}")
     print(f"  目前 HEAD             {_head}（收工時填進版本索引的 commit 欄）")
+    print()
+    print("  註：healthcheck 的 PASS 數不在這裡——它受執行環境影響")
+    print("      （沙箱看不到 ~/.dashpush、errata 條數、期數都會改變總數），")
+    print("      不是可跨版本比較的度量，所以 CHANGELOG 第 2 節刻意不收它。")
     sys.exit(0)
 
 # ── 1. 檔案齊全 ────────────────────────────────────────────────
@@ -130,7 +134,7 @@ if idx:
             if not isinstance(qd, dict) or not {"heat", "support"} <= set(qd):
                 miss.append("quadrant{heat,support}")
             if i.get("trigLit") is None:
-                miss.append("trigLit（觸發器已亮數，趨勢圖第八格）")
+                miss.append("trigLit（觸發器已亮數，趨勢圖第九格）")
         if miss: broken.append(f"{i.get('date')}：缺 {miss}")
     if broken:
         fail("index.json 有期別缺量化快照——跨期趨勢圖會斷：\n        " + "\n        ".join(broken))
@@ -271,7 +275,7 @@ try:
         fail(f"brief 與 MAINTENANCE 出現不同的 cron：{crons}")
     elif crons:
         ok(f"cron 表述一致：{crons.pop()}")
-    times = set(re.findall(r"週日\s*(\d{1,2}:\d{2})", mt + br))
+    times = set(re.findall(r"週日[^\d\n]{0,8}(\d{1,2}:\d{2})", mt + br))
     if len(times) > 1:
         fail(f"執行時刻表述不一致：{times}")
     elif times:
