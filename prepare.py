@@ -69,29 +69,37 @@ def build_adv(files):
                         parts.append(f"{star}({c.get('src','')}/{c.get('tag','')}) "
                                      f"{c.get('title','')} || {str(first)[:trunc]}")
         return "\n".join(parts), ncard
-    for trunc in (110, 80, 60):
+    # 目標 40–60K；來源庫已擴編（26 家、7 天可達 800+ 卡），截斷到底仍超標時
+    # 接受超標並如實回報——規格說了覆蓋率比細節重要，不減卡片則數。
+    for trunc in (110, 80, 60, 45):
         txt, ncard = render(trunc)
         if len(txt) <= 60000: break
     return txt, ncard, trunc
 
 def build_pod(files):
-    parts, nep = [], 0
-    for date, fp in files:
-        d = jload(fp)
-        parts.append(f"\n===== {date}｜{d.get('label','')} =====")
-        cc = d.get("crossCut") or {}
-        if cc:
-            parts.append(f"[交叉觀察] {cc.get('title','')}\n{cc.get('intro','')}")
-            for p in cc.get("points", []):
-                parts.append(f"  · {p.get('title','')}：{p.get('body','')}")
-        for e in d.get("episodes", []):
-            nep += 1
-            parts.append(f"▸{e.get('show','')}｜{e.get('title','')}")
-            parts.append(str(e.get("summary",""))[:420])
-            tks = [t.get("title", t) if isinstance(t, dict) else str(t)
-                   for t in lit(e.get("takeaways", []))]
-            if tks: parts.append("takeaways: " + "｜".join(map(str, tks)))
-    return "\n".join(parts), nep
+    """crossCut 一律全文（規格：不可省略）；超標時只縮 summary 截斷。"""
+    def render(slim):
+        parts, nep = [], 0
+        for date, fp in files:
+            d = jload(fp)
+            parts.append(f"\n===== {date}｜{d.get('label','')} =====")
+            cc = d.get("crossCut") or {}
+            if cc:
+                parts.append(f"[交叉觀察] {cc.get('title','')}\n{cc.get('intro','')}")
+                for p in cc.get("points", []):
+                    parts.append(f"  · {p.get('title','')}：{p.get('body','')}")
+            for e in d.get("episodes", []):
+                nep += 1
+                parts.append(f"▸{e.get('show','')}｜{e.get('title','')}")
+                parts.append(str(e.get("summary",""))[:slim])
+                tks = [t.get("title", t) if isinstance(t, dict) else str(t)
+                       for t in lit(e.get("takeaways", []))]
+                if tks: parts.append("takeaways: " + "｜".join(map(str, tks)))
+        return "\n".join(parts), nep
+    for slim in (420, 300, 220):
+        txt, nep = render(slim)
+        if len(txt) <= 24000: break
+    return txt, nep, slim
 
 def build_bub(b):
     p = [f"composite = {b.get('composite')}",
@@ -157,8 +165,9 @@ def build_cotd(files):
                 parts.append(f"  [qa_flag] {q}")
         return "\n".join(parts), nch
     txt, nch = render(None)
-    if len(txt) > 15000:
-        txt, nch = render(300)   # 先截 reading；takeaway/so_what 一律全文
+    for rlim in (300, 200):      # 先截 reading；takeaway/so_what 一律全文
+        if len(txt) <= 15000: break
+        txt, nch = render(rlim)
     return txt, nch
 
 def main():
@@ -184,7 +193,7 @@ def main():
     bub    = jload(os.path.join(W, "bub", "data.json"))
 
     adv_t, ncard, trunc = build_adv(adv_f)
-    pod_t, nep  = build_pod(pod_f)
+    pod_t, nep, slim = build_pod(pod_f)
     bub_t       = build_bub(bub)
     cotd_t, nch = build_cotd(cotd_f)
     for name, txt in (("adv", adv_t), ("pod", pod_t), ("bub", bub_t), ("cotd", cotd_t)):
@@ -211,7 +220,7 @@ def main():
     md = [f"# PREP · {today}（窗口 {lo} ～ {hi}）\n",
           "## 涵蓋",
           f"- 投顧 {len(adv_f)} 天／{ncard} 卡（body 截斷 {trunc} 字）→ adv.txt {len(adv_t)//1000}K",
-          f"- 節目 {len(pod_f)} 天／{nep} 集 → pod.txt {len(pod_t)//1000}K",
+          f"- 節目 {len(pod_f)} 天／{nep} 集（summary 截斷 {slim} 字）→ pod.txt {len(pod_t)//1000}K",
           f"- 監控 history {len(bub.get('history',[]))} 筆 → bub.txt {len(bub_t)//1000}K",
           f"- 圖表 {len(cotd_f)} 天／{nch} 張 → cotd.txt {len(cotd_t)//1000}K",
           f"- 各庫最新：{'　'.join(f'{k} {v}' for k,v in latest.items())}",
