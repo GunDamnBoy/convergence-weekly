@@ -241,7 +241,10 @@ convergence-weekly/
 - `about.qa_flags` 轉寫進本報的 `gaps`。
 
 「共識裂縫」不是章節，是掛在 item 上的 `tags` 標籤（見第 0 節）。
-要增減章節數，**本節、`build_issue.py`、`index.html`、`verify.py` 的 `CANON` 四處要一起改**。
+要增減章節數或動 schema，**這一組要一起改**：本節、`index.html`、
+`verify.py` 與 `healthcheck.py`（`CANON` 與必備欄位）、`make_index.py` 與 `prepare.py`
+（前者硬依賴 `quant` 的欄位、後者硬依賴上一期的 `watch` 與 index 條目）。
+`build_issue.py` 已凍結，不在組內。
 
 > 第 001 期是 4 節（無 `charts`），`verify.py` 以 `LEGACY` 清單放行。
 > 舊期不回頭補寫——歷史全部保留的另一面是歷史不美化。
@@ -356,24 +359,26 @@ python3 site/prepare.py --work work --site site
 ```
 
 它做完取資料與壓縮兩步：clone 四庫、依下列規格產出 `work/adv.txt`／`pod.txt`／
-`bub.txt`／`cotd.txt`，並印出 `PREP.md`——涵蓋統計、各庫最新日期、
-**上一期 watch 清單全文**（第 4 步驗收用）、**triggers 狀態表**、樣本偏薄旗標。
+`bub.txt`／`cotd.txt`，並印出 `PREP.md`——涵蓋統計與摘要層大小、各庫最新日期（監控庫以 `meta.built` 為準）、
+**上一期資訊（期號／headline／errata 數）與 watch 清單全文**（合成時驗收用）、
+**triggers 狀態表**、樣本偏薄旗標、零新增資料提示。
 **exit 3 ＝ 四庫都沒有比上一期新的資料**，依 §2.1 不產期，直接進交付說明原因。
 
 主線接著只需要讀 `PREP.md` 與摘要層，**不要碰任何原始 JSON**。
 
 **摘要層規格**（＝ `prepare.py` 的實作規格；改這裡就要改它，反之亦然）：
 
-- `adv.txt`：每卡一行 `{★if deep}({src}/{tag}) {title} || {bullets[0] 截斷}`，
+- `adv.txt`：每卡一行 `{★if deep}({src}/{tag}) {title} || {bullets[0] 截斷}`（`bullets` 空時退用 `body[0]`），
   依日期與 group 分層，保留每日 `headline` 與 `overview.snap`。
   目標 ≤60K 字；截斷自動下調 110→80→60→45，到底仍超標則接受並如實回報——
   **不減卡片則數，覆蓋率比細節重要**（來源庫已擴編至 26 家，7 天可達 800+ 卡）。
 - `pod.txt`：每集三行（`▸{show}｜{title}` / 摘要截斷 / takeaway titles），
   **完整保留每日 `crossCut`**（不可省略）。目標 ≤24K；摘要截斷自動下調 420→300→220。
 - `bub.txt`：composite ＋ 三層現值與變動（同架構基準）＋ `quadrant` ＋ `triggers`
-  ＋ 22 項指標（zone/score/asof）＋ `stage` 全文與 checklist ＋ `tw` ＋ `events`。
-- `cotd.txt`：每張圖六行（slot｜theme｜title / subtitle / takeaway / so_what /
-  reading / watch＋tags）＋ 每日 headline＋standfirst ＋ `qa_flags`。
+  ＋ 22 項指標（zone/score/asof）＋ `stage`（checklist 的 `evi` 截 80 字）
+  ＋ `tw` 的 `heat` 與 `items`（其餘子欄不入摘要）＋ `events` 前 40 則。
+- `cotd.txt`：每張圖六至七行（slot｜theme｜title / subtitle / takeaway / so_what /
+  reading / watch / tags）＋ 每日 headline＋standfirst ＋ `qa_flags`。
   **不含 `series` 與 `option`**（單日 100KB 裡的 96KB，無判讀價值）。
   目標 ≤15K；超標先截 `reading` 300→200，`takeaway`／`so_what` 一律全文。
 
@@ -410,8 +415,7 @@ python3 site/prepare.py --work work --site site
 2. 跑 `python3 site/make_index.py site/data/YYYY-MM-DD.json`——
    它自動組出快照（`quantVer`／`quadrant`／`trigLit`）、填當下實際發布時間、保留 `errata`。
    **不要手工編輯 `index.json`。**
-3. 不要動 `index.html`，除非 schema 真的變了（變了就是三處一起改：本節、
-   `index.html`、`verify.py` 與 `healthcheck.py`；`build_issue.py` 已凍結不在組內）
+3. 不要動 `index.html`，除非 schema 真的變了（變了就是一組一起改，清單見第 3.0 節末）
 
 ### 第 6 步：驗證（不可略過，跑在推送之前）
 
@@ -424,7 +428,7 @@ python3 verify.py data/YYYY-MM-DD.json \
 # --index 可省略，預設取 issue 同目錄的 index.json
 ```
 
-> ⚠️ `--bub` 吃的是**原始 `bub/data.json`**，不是第 2 步壓縮出來的 `bub.txt`；
+> ⚠️ `--bub` 吃的是**原始 `bub/data.json`**，不是備料壓縮出來的 `bub.txt`；
 > `--cotd` 則相反，吃的是**壓縮過的 `cotd.txt`**（它走敘事側 substring 回查）。
 > 敘事側才是 substring 回查；量化側做的是欄位名存在性與數值核對。
 >
@@ -434,10 +438,11 @@ python3 verify.py data/YYYY-MM-DD.json \
 > **跳過不算 FAIL，但也不給綠燈**——`verify.py` 會印黃燈並回傳 `exit 2`。
 > 「沒有 FAIL」不等於「檢查有跑」；看到黃燈就是還不能發布。
 
-它檢查八件事：必備欄位與章節結構（`sections` 的 id 與順序）、`evidence[].s` 合法值、
-`index.json` 量化快照（v2 另驗 `quantVer` 與 `quadrant`）、敘事側逐字回查（含 `list[]`）、
+它檢查九件事：必備欄位與章節結構（`sections` 的 id 與順序）、`evidence[].s` 合法值、
+`index.json` 量化快照（v2 另驗 `quantVer`／`quadrant`／`trigLit`）、敘事側逐字回查（含 `list[]`）、
 **共振的來源獨立性（投顧與圖表計為同一票）**、量化側欄位名存在性、
-層／維現值與變動 vs `history`（**不跨改版相減**）、量化佐證未取自 `events`。
+層／維現值與變動 vs `history`（**不跨改版相減**）、**觸發器對帳（id 與 state 對監控庫、
+`trigLit` 對得上）**、量化佐證未取自 `events`。
 
 **任何一項 FAIL 就不要發布。** 回去修正該條引用或刪除它，重跑到全部通過。
 若動過 `index.html`，另外抽出 `<script>` 區塊跑 `node --check`。
@@ -473,11 +478,12 @@ python3 verify.py data/YYYY-MM-DD.json \
   `events` 欄位本身就是 Google News。拿它當量化側證據，等於讓**同一則新聞**
   在投顧側算一次、在監控側再算一次，「三方共振」就是假的——
   而共振是這套系統宣稱最強的訊號。`verify.py` 會 FAIL 這種情況。
-  > 那為什麼第 4 節第 2 步還要把 `events` 放進 `bub.txt`？
+  > 那為什麼備料（第 1–2 步）還要把 `events` 放進 `bub.txt`？
   > 因為它有用：可以拿來**核對投顧側是不是漏了某條新聞**（哨兵用途）。
   > 它是背景資訊，不是證據。
 - **背離那一節必須給出裁判方法。** 只說「兩邊不一致」沒有價值；
   要寫「用什麼數字、跨過什麼門檻，就知道哪一邊對」。
+- **「本期判斷」必須表態。** 不要寫「值得持續觀察」這種話——那是把判斷推給讀者。
 - **不要為了湊滿章節而硬掰。** 某週真的沒有背離，就寫「本週四庫高度一致，這本身是訊號」。
 - **不要重述新聞。** 每一條都要包含「因為幾個庫都／只有一庫講，所以⋯⋯」這層推論。
 - **單邊訊號只標記不判斷。** 這是紀律，避免把未驗證的東西講成結論。
@@ -491,7 +497,7 @@ python3 verify.py data/YYYY-MM-DD.json \
 
 ---
 
-## 6. 待決事項與變更紀錄
+## 6. 待決事項
 
 **完整變更紀錄（v0.1 起）已移至 `MAINTENANCE.md` 第 7 節**——那是維護者要讀的歷史，
 每週排程不需要它。排程只要知道：**現行規格就是本檔此刻的內容**。

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-主題匯流訊號報 · 備料（每週排程的第 1–2 步，機械環節全部在這裡）
+主題匯流訊號報 · 備料（排程流程的第一步，機械環節全部在這裡）
 
 用法：
     python3 prepare.py [--work work] [--no-clone] [--site /path/to/convergence-weekly]
@@ -9,8 +9,8 @@
 做的事（全部確定性，不需要模型參與）：
   1. clone 四庫（adv / pod / bub / cotd；--no-clone 可重用既有的 work/）
   2. 依 AGENT_BRIEF.md 第 4 節第 2 步的規格產出四份摘要層：
-       work/adv.txt   每卡一行，body 截斷自動調整以落在 40–60K 字
-       work/pod.txt   每集三行＋完整 crossCut，目標 12–20K
+       work/adv.txt   每卡一行，body 截斷自動下調（110→80→60→45）以壓在 60K 內
+       work/pod.txt   每集三行＋完整 crossCut，目標 ≤24K（summary 截斷 420→300→220）
        work/bub.txt   composite＋三層＋quadrant＋triggers＋22 項指標＋stage＋tw＋events
        work/cotd.txt  每張圖六行（不含 series/option），超過 15K 先截 reading 至 300 字
   3. 寫 work/PREP.md：涵蓋統計、各庫最新日期、上一期資訊與 watch 清單全文、
@@ -19,7 +19,7 @@
 
 exit code：0 正常；3 = 四庫全部沒有比上一期更新的資料（依規格 §2.1 不應產期）
 """
-import json, os, sys, re, ast, subprocess, argparse, datetime as dt
+import json, os, sys, re, ast, subprocess, argparse, datetime as dt, zoneinfo
 
 REPOS = {
     "adv":  "https://github.com/GunDamnBoy/advisory-knowledge-hub",
@@ -51,7 +51,7 @@ def dated_files(d, lo, hi):
     return out
 
 def build_adv(files):
-    """每卡一行；截斷長度自動下調（110→80→60）讓總量落在 60K 內，不減卡片則數。"""
+    """每卡一行；截斷長度自動下調（110→80→60→45），不減卡片則數。bullets 空時退用 body[0]。"""
     def render(trunc):
         parts, ncard = [], 0
         for date, fp in files:
@@ -183,8 +183,11 @@ def main():
             d = os.path.join(W, k)
             if not os.path.isdir(os.path.join(d, ".git")):
                 sh(f"git clone --depth 1 -q {url} {d}")
+            else:
+                # 既有 clone 一定要 pull——殘留上週的 work/ 會靜靜地拿舊資料備料
+                sh(f"git -C {d} pull -q --ff-only")
 
-    today = dt.date.today()
+    today = dt.datetime.now(zoneinfo.ZoneInfo("Asia/Taipei")).date()
     lo, hi = str(today - dt.timedelta(days=6)), str(today)
 
     adv_f  = dated_files(os.path.join(W, "adv",  "data"), lo, hi)
@@ -206,10 +209,14 @@ def main():
     latest = {
         "投顧": adv_f[-1][0] if adv_f else "（窗口內無檔）",
         "節目": pod_f[-1][0] if pod_f else "（窗口內無檔）",
-        "監控": max((r.get("date","") for r in bub.get("history", [])), default="?"),
+        # 監控用 meta.built——history 盤後會落後頂層一格，不能拿它判斷新舊
+        "監控": str((bub.get("meta") or {}).get("built") or "（無 meta.built）")[:10],
         "圖表": cotd_f[-1][0] if cotd_f else "（窗口內無檔）",
     }
-    fresh = [k for k, v in latest.items() if v > prev["date"]]
+    # 只有合法日期字串才能參與比較——「（窗口內無檔）」之類的值
+    # 在字串比較裡大於任何日期，會讓零新增判定永遠不觸發
+    is_date = lambda s: bool(re.match(r"20\d\d-\d\d-\d\d$", str(s)))
+    fresh = [k for k, v in latest.items() if is_date(v) and v > prev["date"]]
     tg = bub.get("triggers") or []
     lit_n = sum(1 for x in tg if x.get("state"))
     thin = []

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-主題匯流訊號報 · index.json 快照組裝（每週排程的第 5 步後半，機械環節）
+主題匯流訊號報 · index.json 快照組裝（寫完單期檔後跑，機械環節）
 
 用法：
     python3 make_index.py data/2026-08-09.json

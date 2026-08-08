@@ -39,9 +39,11 @@ git push -u origin main
    `mcp__scheduled-tasks__update_scheduled_task` 同步（taskId：`convergence-weekly`）。
    ⚠️ `prompt` 是**整份取代，不是局部編輯**——送出前確認所有段落都帶上了，漏掉的段落等於刪除。
 3. 在**本檔第 7 節**加變更紀錄（v0.7 起自 brief 移入），**寫清楚為什麼改**，不只是改了什麼
-4. 動到單期 JSON schema 時，**這三處是一組**：brief 第 3 節、
+4. 動到單期 JSON schema 時，**這一組要一起改**：brief 第 3 節、
    `index.html`（`renderItem`／`renderQuant`／`renderTrend`／`renderErrata` 與章節編號計算）、
-   `verify.py` 與 `healthcheck.py`（兩者的必備欄位清單與 `CANON`）。
+   `verify.py` 與 `healthcheck.py`（必備欄位清單與 `CANON`）、
+   **`make_index.py` 與 `prepare.py`**（v0.7 起：前者硬依賴 `quant` 欄位組 index 條目，
+   後者硬依賴上一期的 `watch` 與 index 條目——schema 一動它們會靜靜地產出錯的東西）。
    ⚠️ `build_issue.py` **不在這一組裡**——它已凍結在第 001 期，刻意不追著改。
 5. 事故經過與被否決的選項寫本檔第 6 節
 
@@ -109,6 +111,7 @@ git push -u origin main
   · 逐條驗收上一期 watch（PREP.md 已附全文），有結果的寫進本期 verdict。
   · 「本期判斷」3 段，必須表態，不要寫「值得持續觀察」這種話。
   · 圖表側寫節＝數字落地：把敘事的形容詞換成圖表算出的數字；選題本身不是證據。
+  · 單邊訊號只標記不判斷（避免把未驗證的東西講成結論）。
   · 不重述新聞（每條要有「因為幾庫都／只有一庫講，所以⋯」）；不硬湊章節；
     數字打架就把出入寫出來；佐證一律逐字，引 crossCut 要標明出處不可偽裝成集數標題。
 
@@ -170,7 +173,7 @@ git push -u origin main
 - **`sections` 的 id 與順序被鎖死。** v0.5 起為
   `resonance→divergence→taiwan→charts→single`（5 節）；第 001 期是 4 節（無 `charts`），
   `verify.py` 的 `LEGACY` 清單放行。外殼尾段編號已改為依長度動態計算，不再寫死。
-  要增減章節，brief 第 3.0 節、`build_issue.py`、`index.html`、`verify.py` 的 `CANON` 四處一起改。
+  要增減章節或動 schema，一組一起改（清單見 brief 第 3.0 節末，含 `make_index.py` 與 `prepare.py`）。
 - **每日五圖不是獨立來源。** 它的 `about.upstream[0]` 就是投顧庫的當日檔——選題同源。
   「投顧在講＋圖表也在畫」是一票不是兩票，`verify.py` 會對 `resonance` 節實際計算獨立聲音數。
   這是 `events` 禁令的同型問題，第三次踩到同一個坑了（`events`、然後是圖表庫）：
@@ -195,7 +198,7 @@ git push -u origin main
       不是故障。要消掉這個 WARN 得另外授權 `~/.dashpush` 資料夾。）
 - [x] 投顧知識庫保留天數——2026-08-06 覆核已是 **6 天**（07-30、08-02～08-06），
       樣本偏薄分支不再是每期必踩。待觀察：是否穩定在 6 天
-- [ ] 觀察：累積 4 期後檢視「跨期趨勢」八格是否選對了指標
+- [ ] 觀察：累積 4 期後檢視「跨期趨勢」九格是否選對了指標
       （連續組 3 格：composite / stage / 台股熱度；
       v2 組 6 格：L1 / L2 / L3 / 象限熱度 / 象限支撐 / 觸發器已亮）
 - [ ] 觀察：`feedback` 章節提出的建議有沒有被實際採納，沒有的話這一節要不要留
