@@ -36,6 +36,7 @@
 
 | 日期 | 版本 | 一句話 | 動到的檔案 | 類型 | 收工 commit |
 |---|---|---|---|---|---|
+| 2026-08-09 | **v0.9** | 依第 002 期實跑的用量報告優化：骨架化、禁重複勞動、修 watch 綁定漏洞 | `prepare.py` `verify.py` `AGENT_BRIEF` `MAINTENANCE` `data/index.json` | 效能＋修正 | `7acb1d29`＋ |
 | 2026-08-08 | **v0.8** | 建立本檔：逐版詳述、度量趨勢、回溯要點、失效模式歸納 | ＋`CHANGELOG.md` `healthcheck.py` `AGENT_BRIEF` `MAINTENANCE` | 流程 | `46f4192b`＋ |
 | 2026-08-08 | **v0.7.1** | 瘦身後複查，修 12 處含一個零新增判定 bug | `prepare.py` `make_index.py` `AGENT_BRIEF` `MAINTENANCE` | 修正 | `d14797b9` |
 | 2026-08-08 | **v0.7** | token 優化：備料與 index 組裝腳本化、prompt 減半 | ＋`prepare.py` ＋`make_index.py` `AGENT_BRIEF` `MAINTENANCE` `healthcheck.py` | 效能 | `d14797b9` |
@@ -128,7 +129,7 @@
 
 **現行對策**：`MAINTENANCE.md` 第 2 節末的自問——「這條規則排程執行時讀得到嗎？」
 
-### 3.3 「改完再比對一次」每次都抓到東西（4 次，命中率 100%）
+### 3.3 「改完再比對一次」每次都抓到東西（5 次，命中率 100%）
 
 | 版本 | 複查抓到 | 其中會實際出錯的 |
 |---|---|---|
@@ -136,6 +137,7 @@
 | v0.5.1 | 1 支腳本 ＋ 11 處文件 | `healthcheck.py` 硬驗六維（v2 期別必誤報） |
 | v0.6 | 30 處 | `l1`–`l3` 不在合法欄位名清單（v2 期引用層分數會被誤判 FAIL）；`build_issue.py` 重建時洗掉 `errata` |
 | v0.7.1 | 12 處 | `prepare.py` 零新增判定永遠不觸發（保護等於不存在） |
+| v0.9 | 20 處 | 骨架的 `watch` 佔位字串會讓 `verify.py` 第 5.6 項**必定誤報**，且錯誤訊息把人導向查 trigger 表而不是填 watch |
 
 **每一次都是在自己剛改完的東西裡抓到的。**
 
@@ -156,6 +158,66 @@
 ---
 
 ## 4. 各版本詳述
+
+### v0.9 — 2026-08-09 · 效能＋修正
+
+**動機**　第 002 期是第一次由排程完整跑完並發布。**內容品質是成功的**——標題句是判斷不是主題、
+上期 watch 被逐條驗收（甚至修正了上期自己的說法）、圖表側寫抓到圖表庫的自我矛盾、
+三條共振全部真的有三個獨立聲音、量化佐證 8/8 全帶 `<code>`。
+但用量報告顯示 **560 萬有效 token、77 回合，其中 51.7% 是每回合重讀的固定成本**，
+而交叉檢查 JSON 又發現一個真的漏洞。
+
+**逐檔改動**
+
+- `prepare.py`
+  - **新增 `--emit-skeleton`**：產出 `work/skeleton.json`——`date`／`issue`／`label`／
+    `range`／`coverage` 與 `quant` 的**數值欄位**（`composite`／`zone`／`stage.current`／
+    `twHeat`／`quadrant`／三層與變動／`triggers` 全帶）全部自動填好。
+    `dims[].note`／`stage.delta`／`callout`／`quant.note` 仍標「（填：…）」——那四欄是判斷。
+  - **`PREP.md` 內嵌量化底盤全文**（composite／象限／階段／台股熱度／三層變動／觸發器表），
+    主線不必再另外讀 `bub.txt`。
+  - 修 `range.quant` 會拖出時間戳（`meta.built[5:]` 少了 `[:10]`）、
+    `range.narrative` 只取投顧未含節目與圖表、`coverage` 掉了卡片／集數／張數、
+    `zone` 用 `lo/hi` 取值但 `zones` 實際是 `max` 門檻表（58.1 被判成「冷靜期」）、
+    `schemaVer` 寫死 v2 改為讀 `meta.version`。
+- `verify.py`
+  - **新增第 5.6 項：`watch[]` 的 trigger 綁定檢查。**
+  - `evidence[].s` 合法值改為有自己的輸出行（原本只進 `fails`，畫面上看不到）。
+  - 缺 `--bub` 的 skipped 標籤補上被跳過的觸發器對帳與 watch 綁定兩批。
+  - trigger id 比對加 `(?<![a-z0-9_])` 邊界，避免日後新增短 id 互吃。
+- `AGENT_BRIEF.md` / `MAINTENANCE.md` / 排程 prompt：第 1 步加 `--emit-skeleton`；
+  **明令不要讀腳本原始碼、不要自己逐條回查引文**；第 4／5 步改用骨架；
+  子代理加「一次讀完不要分段」；`watch` 的 trigger id 規則；
+  「一組要一起改」的清單把 `prepare.py` 的依賴範圍寫準（它現在硬依賴整份 schema）。
+- `data/index.json`：第 002 期加 3 條 `errata`（見下）。
+
+**修掉的真漏洞**
+
+第 002 期 7 條 `watch` 裡**有 4 條的 trigger 綁定是壞的**：
+`<code>ccc</code>`（那是 indicator id，trigger 是 `ccc12`）、
+講 `hy80` 卻標成 `<code>stage</code>`、`y10_5` 與 `cpi4` 只寫文字沒標。
+`verify.py` 當時擋不到——它只驗「id 存在於監控庫」，而 `ccc`／`stage` 都是合法欄位名。
+
+**這正好打掉 v0.6 接 triggers 的全部意義**（「下期驗收直接查 `state` 翻轉」）。
+新的第 5.6 項對第 002 期實跑，精準抓出那 4 條、與人工核對完全一致。
+依「既有單期檔永不改寫」，內文不動，改為加 `errata`。
+
+**被否決的選項**
+
+- 「讓骨架把 `quant` 整區含判斷欄位也填掉」——否決。`dims[].note`／`stage.delta`／
+  `callout`／`quant.note` 是判斷不是抄寫，自動填等於產出佔位垃圾。
+- 「砍摘要層大小來省 token」——否決，理由同 v0.7：覆蓋率比細節重要。
+  省的應該是**回合數**（51.7% 的成本乘數），不是資料量。
+
+**驗證方式**　骨架實跑並逐欄檢查；`verify.py` 第 5.6 項做正反測試
+（第 002 期抓 4 條、修正版放行、骨架佔位不誤報）；`healthcheck` PASS 23 / FAIL 0；
+子代理獨立複查抓到 20 處（含**骨架的 `watch` 佔位字串會讓 5.6 必定誤報**這個自造陷阱），全數修正。
+
+**回溯要點**　`prepare.py` 與 `verify.py` 的改動**無資料格式相依**，可單獨退。
+但退掉第 5.6 項等於把 trigger 綁定的自動驗收保護拿掉；
+退掉 `--emit-skeleton` 要同時把 prompt 第 4 步退回「自己寫 quant」。
+
+---
 
 ### v0.8 — 2026-08-08 · 流程
 
