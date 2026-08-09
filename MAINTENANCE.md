@@ -82,10 +82,14 @@ git push -u origin main
 
 第 1 步：備料（跑現成腳本，不要自己寫摘要程式）
   git clone --depth 1 https://github.com/GunDamnBoy/convergence-weekly.git site
-  python3 site/prepare.py --work work --site site
-  它會 clone 四庫、產出 work/ 下的 adv.txt／pod.txt／bub.txt／cotd.txt 四份摘要層，
-  並印出 PREP.md：涵蓋統計、各庫最新日期、上一期 watch 清單全文、triggers 狀態表、
-  樣本偏薄旗標。讀 PREP.md 與 site/AGENT_BRIEF.md 就夠，不要碰任何原始 JSON。
+  python3 site/prepare.py --work work --site site --emit-skeleton
+  它會 clone 四庫、產出四份摘要層，印出 PREP.md（涵蓋統計、各庫最新日期、
+  **量化底盤全文**、上一期 watch 清單全文、triggers 狀態表、樣本偏薄旗標），
+  並寫出 work/skeleton.json——**單期 JSON 骨架，quant 整區已經填好**。
+  讀 PREP.md 與 site/AGENT_BRIEF.md 就夠。
+  ⚠️ **不要讀任何原始 JSON，也不要讀 verify.py／make_index.py／prepare.py 的原始碼**
+     ——它們的用法本 prompt 已經寫完，讀原始碼零收益。
+     bub.txt 只在要查某個特定指標的 score／zone／asof 時才讀。
   ⚠️ exit 3 ＝ 四庫都沒有比上一期新的資料。依規格 §2.1 不產期：
      直接在交付訊息寫明「本次未產期」與各庫實際最新日期，不寫任何檔案，結束。
   ⚠️ PREP.md 出現「樣本偏薄」旗標時，about.run 須註明、共振判定保守；
@@ -103,13 +107,15 @@ git push -u origin main
      它有價值的是數字，由主線自己讀。
 
 第 3 步：主線自己合成（不可外包）。順序有講究——
-  先自己讀 work/bub.txt 與 work/cotd.txt 把量化面攤開，再拿兩份敘事主題去對。
+  先看 PREP.md 的「量化底盤」與 work/cotd.txt 把量化面攤開，再拿兩份敘事主題去對。
   反過來做只找得到「指標支持敘事」的部分，找不到背離——而背離是本系統唯一無可取代的產出。
 
   合成時的判斷原則（機器驗不了，靠你自律）：
   · 計票：三方共振＝三個獨立聲音（投顧＋圖表合計一票／節目／量化）。
   · 背離節必須給裁判方法，優先引用 PREP.md 的 triggers 現成門檻；
-    watch[] 能對應 trigger 的要寫出 id，下期驗收直接查 state 翻轉。
+    watch[] 能對應 trigger 的**必須用 <code>trigger_id</code> 標出正確 id**
+    （PREP.md 觸發器表列了合法 id；注意 ccc12 不是 ccc、hy80 不是 stage）。
+    **verify.py 會擋，標錯或漏標就是 FAIL。**
   · 逐條驗收上一期 watch（PREP.md 已附全文），有結果的寫進本期 verdict。
   · 「本期判斷」3 段，必須表態，不要寫「值得持續觀察」這種話。
   · 圖表側寫節＝數字落地：把敘事的形容詞換成圖表算出的數字；選題本身不是證據。
@@ -124,13 +130,21 @@ git push -u origin main
   （含缺天、updatedLabel 過期、asof 落後、卡片數異常、圖表庫 qa_flags 五項）。
 
 第 4 步：寫檔
-  寫 site/data/YYYY-MM-DD.json（不得改寫任何既有單期檔；schema 見 brief 第 3 節，
-  build_issue.py 已凍結在第 001 期，不要照抄它的結構）。
+  **以 work/skeleton.json 為底**寫 site/data/YYYY-MM-DD.json——
+  它的 date／issue／label／range／coverage 與**整個 quant 區**（composite／zone／note／
+  stage／twHeat／quadrant／三層／7 條 triggers）已經填好，直接沿用。
+  你只要填標「（填：…）」的欄位與 sections[].items。**不要重打 quant**——
+  那一整區是機械抄寫，手打既慢又會抄錯（第 002 期就是這樣把 watch 的
+  trigger id 標成 indicator id）。
+  不得改寫任何既有單期檔；schema 細節見 brief 第 3 節，
+  build_issue.py 已凍結在第 001 期，不要照抄它的結構。
   然後跑 python3 site/make_index.py site/data/YYYY-MM-DD.json——
   它自動組 index.json 快照（quantVer／quadrant／trigLit／發布時間）並保留 errata，
   不要手工編輯 index.json。
 
 第 5 步：驗證（不可略過，跑在推送之前）
+  ⚠️ **不要自己逐條回查引文**——那正是 verify.py 第 3 項在做的事，做兩遍等於白花一次，
+     而且手動那次還漏掉 list[]。直接跑它，看它的報告修。
   python3 site/verify.py site/data/YYYY-MM-DD.json \
     --adv work/adv.txt --pod work/pod.txt --cotd work/cotd.txt --bub work/bub/data.json
   ⚠️ --bub 吃原始 data.json；四個路徑參數一個都不能省（敘事三份全有或全無，

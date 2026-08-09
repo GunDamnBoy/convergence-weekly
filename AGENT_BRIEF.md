@@ -224,8 +224,10 @@ convergence-weekly/
 
 - 背離的裁判方法**先看有沒有現成的 trigger 對得上**，有就直接引用它的門檻與 `state`。
   自己另外定義門檻是次選——現成的那組是客觀、跨期一致、且會自動更新的。
-- `watch[]` 也一樣：**能對應到 trigger 的條目要寫出 trigger id**，
+- `watch[]` 也一樣：**能對應到 trigger 的條目必須用 `<code>trigger_id</code>` 標出正確的 id**，
   下一期驗收時就是查 `state` 有沒有翻轉，不必再靠人工判斷。
+  **`verify.py` 會擋**：提到某個 trigger 卻沒標、或標成 indicator id（`ccc` 不是 `ccc12`、
+  `stage` 不是 `hy80`）都是 FAIL。第 002 期 7 條 `watch` 裡有 4 條踩到這個。
   第 001 期的 watch 有一條「10 年期美債升破 5%」當時在監控庫沒有對應欄位、無法程式化驗收，
   v2 的 `y10_5` 正好補上——這條回饋迴圈是閉合的。
 - 7 條全部帶進 `quant.triggers`，**不要挑**。沒亮的那幾條本身就是資訊
@@ -356,7 +358,7 @@ convergence-weekly/
 
 ```bash
 git clone --depth 1 https://github.com/GunDamnBoy/convergence-weekly.git site
-python3 site/prepare.py --work work --site site
+python3 site/prepare.py --work work --site site --emit-skeleton
 ```
 
 它做完取資料與壓縮兩步：clone 四庫、依下列規格產出 `work/adv.txt`／`pod.txt`／
@@ -365,7 +367,15 @@ python3 site/prepare.py --work work --site site
 **triggers 狀態表**、樣本偏薄旗標、零新增資料提示。
 **exit 3 ＝ 四庫都沒有比上一期新的資料**，依 §2.1 不產期，直接進交付說明原因。
 
-主線接著只需要讀 `PREP.md` 與摘要層，**不要碰任何原始 JSON**。
+主線接著只需要讀 `PREP.md` 與摘要層，**不要碰任何原始 JSON**，
+也**不要讀 `verify.py`／`make_index.py`／`prepare.py` 的原始碼**——
+它們的用法本節與排程 prompt 已經寫完，讀原始碼零收益。
+`PREP.md` 已內嵌**量化底盤全文**（composite／象限／階段／台股熱度／三層變動／觸發器表），
+`bub.txt` 只在要查某個特定指標的 `score`／`zone`／`asof` 時才需要讀。
+
+`--emit-skeleton` 另外寫出 `work/skeleton.json`：**單期 JSON 骨架**，
+`date`／`issue`／`label`／`range`／`coverage` 與**整個 `quant` 區**都已填好
+（見第 5 步）。
 
 **摘要層規格**（＝ `prepare.py` 的實作規格；改這裡就要改它，反之亦然）：
 
@@ -412,7 +422,11 @@ python3 site/prepare.py --work work --site site
 
 ### 第 5 步：寫檔
 
-1. 寫 `data/YYYY-MM-DD.json`（**不得改寫任何既有單期檔**）
+1. **以 `work/skeleton.json` 為底**寫 `data/YYYY-MM-DD.json`（**不得改寫任何既有單期檔**）。
+   骨架的 `quant` 整區（`composite`／`zone`／`note`／`stage`／`twHeat`／`quadrant`／
+   三層／7 條 `triggers`）已由 `prepare.py` 從監控庫抄好，**直接沿用、不要重打**——
+   那一整區是機械抄寫，手打既慢又會抄錯（第 002 期就是這樣把 `watch` 的
+   trigger id 標成 indicator id）。你只要填標「（填：…）」的欄位與 `sections[].items`。
 2. 跑 `python3 site/make_index.py site/data/YYYY-MM-DD.json`——
    它自動組出快照（`quantVer`／`quadrant`／`trigLit`）、填當下實際發布時間、保留 `errata`。
    **不要手工編輯 `index.json`。**
@@ -439,11 +453,14 @@ python3 verify.py data/YYYY-MM-DD.json \
 > **跳過不算 FAIL，但也不給綠燈**——`verify.py` 會印黃燈並回傳 `exit 2`。
 > 「沒有 FAIL」不等於「檢查有跑」；看到黃燈就是還不能發布。
 
-它檢查九件事：必備欄位與章節結構（`sections` 的 id 與順序）、`evidence[].s` 合法值、
+它檢查十件事：必備欄位與章節結構（`sections` 的 id 與順序）、`evidence[].s` 合法值、
 `index.json` 量化快照（v2 另驗 `quantVer`／`quadrant`／`trigLit`）、敘事側逐字回查（含 `list[]`）、
 **共振的來源獨立性（投顧與圖表計為同一票）**、量化側欄位名存在性、
-層／維現值與變動 vs `history`（**不跨改版相減**）、**觸發器對帳（id 與 state 對監控庫、
-`trigLit` 對得上）**、量化佐證未取自 `events`。
+層／維現值與變動 vs `history`（**不跨改版相減**）、觸發器對帳、
+**`watch` 的 trigger 綁定**、量化佐證未取自 `events`。
+
+> ⚠️ **不要自己先逐條回查一遍再跑它。** 那正是它第 3 項在做的事，做兩遍等於白花一次，
+> 而且手動那次還會漏掉 `list[]`（單邊訊號整節都在那裡）。直接跑，看報告修。
 
 **任何一項 FAIL 就不要發布。** 回去修正該條引用或刪除它，重跑到全部通過。
 若動過 `index.html`，另外抽出 `<script>` 區塊跑 `node --check`。
