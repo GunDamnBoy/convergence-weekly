@@ -170,10 +170,95 @@ def build_cotd(files):
         txt, nch = render(rlim)
     return txt, nch
 
+def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today):
+    """產出單期 JSON 骨架：所有能從資料推導的欄位全部填好。
+
+    主線只需要填 verdict / sections / watch / gaps / about.run。
+    quant 整區是純機械的（全部從 bub 抄），手打既慢又容易抄錯——
+    第 002 期就是手打 quant 時把 watch 的 trigger id 標成 indicator id。
+    """
+    h = bub.get("history", [])
+    cur = bub.get("dims", {})
+    same = sorted([r for r in h if set(r.get("dims", {})) == set(cur)],
+                  key=lambda r: r.get("date", ""))
+    first = same[0] if same else None
+    dm = bub.get("dimMeta", {})
+    dims = []
+    for k in sorted(cur):
+        m = dm.get(k, {})
+        dims.append({
+            "id": k, "name": m.get("name", ""),
+            "w": f"{int(round(float(m.get('w', 0))*100))}%",
+            "v": cur[k],
+            "delta": round(cur[k] - first["dims"][k], 1) if first else 0.0,
+            "note": "（填：這一層本期為什麼動／沒動）",
+        })
+    qd = bub.get("quadrant") or {}
+    st = bub.get("stage") or {}
+    lit = [c for c in st.get("checklist", []) if c.get("state")]
+    # zones 是依 max 升冪的門檻表（無 lo/hi），取第一個 max ≥ composite 的
+    _c = bub.get("composite", 0)
+    _zs = [z for z in bub.get("zones", []) if isinstance(z, dict) and "max" in z]
+    _zs.sort(key=lambda z: z["max"])
+    zone = next((z for z in _zs if _c <= z["max"]), (_zs[-1] if _zs else None))
+    _prev_max = None
+    for _z in _zs:
+        if _z is zone: break
+        _prev_max = _z["max"]
+    zone_label = (f"{zone['label']}（{(_prev_max or 0)}–{zone['max']}）" if zone
+                  else "（填：對照 bub.txt 的 zones）")
+    issue_no = prev["issue"] + 1
+    rng_n = f"{adv_f[0][0][5:].replace('-','/')} – {adv_f[-1][0][5:].replace('-','/')}" if adv_f else "—"
+    rng_q = f"{same[0]['date'][5:].replace('-','/')} – {(bub.get('meta') or {}).get('built','')[5:].replace('-','/')}" if same else "—"
+    return {
+        "date": str(today), "issue": issue_no,
+        "label": f"第 {issue_no:03d} 期 · {today.year} 年 {today.month} 月 {today.day} 日",
+        "stamp": "（填：一句話定位本期，例如「四庫比對．第 N 期」）",
+        "range": {"quant": rng_q, "narrative": rng_n},
+        "headline": "（填：一句話，要有觀點，不是主題標籤）",
+        "coverage": [
+            {"k": "投顧知識庫", "v": f"{len(adv_f)} 天"},
+            {"k": "節目知識庫", "v": f"{len(pod_f)} 天"},
+            {"k": "AI 泡沫監控", "v": f"history {len(h)} 筆 / {len(bub.get('indicators',[]))} 項指標"},
+            {"k": "每日五圖", "v": f"{len(cotd_f)} 天"},
+        ],
+        "verdict": ["（填：段 1，必須表態）", "（填：段 2，上一期 watch 逐條驗收）",
+                    "（填：段 3，本期唯一無可取代的發現）"],
+        "quant": {
+            "schemaVer": "v2",
+            "composite": bub.get("composite"),
+            "zone": zone_label,
+            "note": f"基準 {first['date'] if first else '—'}（同架構最早一筆）",
+            "stage": {"current": st.get("current"), "label": st.get("label", ""),
+                      "lit": f"{len(lit)}／{len(st.get('checklist', []))}",
+                      "delta": "（填：本期有無新增點亮）"},
+            "twHeat": (bub.get("tw") or {}).get("heat"),
+            "quadrant": {k: qd.get(k) for k in ("heat", "support", "regime")},
+            "triggers": [{k: x[k] for k in ("id", "name", "state", "value", "asof") if k in x}
+                         for x in bub.get("triggers", [])],
+            "dims": dims,
+            "callout": {"h": "（填：這張圖要看的重點）", "body": "（填）"},
+        },
+        "sections": [
+            {"id": i, "title": t, "lede": "（填）", "items": []}
+            for i, t in (("resonance", "一 · 三方共振"), ("divergence", "二 · 關鍵背離"),
+                         ("taiwan", "三 · 台股"), ("charts", "四 · 圖表側寫"),
+                         ("single", "五 · 單邊訊號"))
+        ],
+        "watch": ["（填：每條可觀察可證偽；能對應 trigger 的必須用 <code>trigger_id</code> 標，"
+                  "合法 id：" + "／".join(x["id"] for x in bub.get("triggers", [])) + "）"],
+        "gaps": ["（填：缺天／各庫 updatedLabel 過期／指標 asof 落後／卡片數異常／圖表庫 qa_flags）"],
+        "about": {"run": "（填：本期執行紀錄與樣本厚度）",
+                  "method": "prepare.py 備料 → 兩個平行子代理讀敘事側 → 主線併入量化底盤合成 → verify.py 逐字回查"},
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--work", default="work")
     ap.add_argument("--no-clone", action="store_true")
+    ap.add_argument("--emit-skeleton", action="store_true",
+                    help="另外寫出 work/skeleton.json：單期 JSON 骨架，quant 整區已填好")
     ap.add_argument("--site", default=os.path.dirname(os.path.abspath(__file__)))
     a = ap.parse_args()
     W = a.work; os.makedirs(W, exist_ok=True)
@@ -236,7 +321,33 @@ def main():
           f"- errata：{len(prev.get('errata', []))} 條",
           "\n### 上一期 watch（逐條驗收，結果寫進本期 verdict）"]
     md += [f"{i+1}. {w}" for i, w in enumerate(prev_full.get("watch", []))]
-    md += [f"\n## 觸發器（{lit_n}/{len(tg)} 已觸發；背離節裁判方法優先引用）"]
+    # ── 量化底盤直接內嵌，主線讀 PREP.md 就有全部量化面 ──
+    _h = bub.get("history", [])
+    _cur = bub.get("dims", {})
+    _same = sorted([r for r in _h if set(r.get("dims", {})) == set(_cur)],
+                   key=lambda r: r.get("date", ""))
+    _first = _same[0] if _same else None
+    _dm = bub.get("dimMeta", {})
+    _qd = bub.get("quadrant") or {}
+    _st = bub.get("stage") or {}
+    _tw = bub.get("tw") or {}
+    md += [f"\n## 量化底盤（bub.txt 只在要查特定指標時才需要讀）",
+           f"- composite **{bub.get('composite')}**"
+           f"　象限 heat {_qd.get('heat')} / support {_qd.get('support')}"
+           f"　regime **{_qd.get('regime')}**",
+           f"- 階段 stage **{_st.get('current')}**（{_st.get('label','')}）"
+           f"　點亮 {sum(1 for c in _st.get('checklist',[]) if c.get('state'))}"
+           f"／{len(_st.get('checklist',[]))}"
+           f"　台股熱度 **{_tw.get('heat')}**",
+           f"- 層分數（變動＝現值 − 同架構最早一筆"
+           f"{'，基準 '+_first['date'] if _first else '，history 無同架構筆'}）："]
+    for k in sorted(_cur):
+        _m = _dm.get(k, {})
+        _d = f"{round(_cur[k]-_first['dims'][k],1):+}" if _first else "—"
+        md += [f"  - **{k} {_m.get('name','')}**（w {_m.get('w','')}）：{_cur[k]}　變動 {_d}"]
+    md += [f"\n## 觸發器（{lit_n}/{len(tg)} 已觸發；背離節裁判方法優先引用）",
+           "> `watch[]` 能對應到 trigger 的條目**必須用 `<code>id</code>` 標出下表的 id**"
+           "（不是 indicator id），下期驗收才能直接查 `state` 翻轉。`verify.py` 會擋。"]
     md += [f"- {'●' if x.get('state') else '○'} `{x['id']}` {x.get('name','')}"
            f"｜{x.get('value')}｜asof {x.get('asof')}" for x in tg]
     if thin:
@@ -245,6 +356,17 @@ def main():
         md += ["\n## 🛑 零新增資料",
                f"四庫最新日期皆 ≤ 上一期（{prev['date']}）。依規格 §2.1 **不產期**：",
                "在交付訊息寫明「本次未產期」與各庫實際最新日期，不寫任何檔案。"]
+    if a.emit_skeleton:
+        sk = build_skeleton(bub, a.site, adv_f, pod_f, cotd_f, prev, today)
+        sp = os.path.join(W, "skeleton.json")
+        with open(sp, "w", encoding="utf-8") as f:
+            json.dump(sk, f, ensure_ascii=False, indent=1)
+        md += [f"\n## 骨架已產出：`{sp}`",
+               f"第 {sk['issue']:03d} 期。**`quant` 整區已填好**（composite／zone／stage／twHeat／"
+               f"quadrant／{len(sk['quant']['dims'])} 層／{len(sk['quant']['triggers'])} 條 triggers），"
+               "`date`／`issue`／`label`／`range`／`coverage` 也已填。",
+               "你只要填標「（填：…）」的欄位與 `sections[].items`，**不要重打 `quant`**。"]
+
     out = "\n".join(md)
     open(os.path.join(W, "PREP.md"), "w", encoding="utf-8").write(out)
     print(out)

@@ -7,7 +7,7 @@
     python3 verify.py data/2026-08-03.json --adv /path/adv.txt --pod /path/pod.txt \
         --cotd /path/cotd.txt --bub /path/bub/data.json
 
-檢查九件事：
+檢查十件事：
  1. 單期 JSON 與 index.json 可解析、必備欄位齊全、章節 id 與順序合規
  2. index.json 帶有本期的量化快照（跨期趨勢圖的唯一資料來源，漏了圖會斷）
  3. 敘事側每一條 evidence 都能在 adv.txt / pod.txt / cotd.txt 裡逐字回查到
@@ -21,6 +21,8 @@
  5. 層／維現值與變動 vs history（變動＝現值 − **同架構最早一筆**，不跨改版相減）
  5.5 觸發器對帳：quant.triggers 的 id 與 state 必須與監控庫一致，
     index.json 的 trigLit（已觸發數）也要對得上。
+ 5.6 watch[] 的 trigger 綁定：提到 trigger 名稱就必須用 <code>正確 id</code> 標，
+    否則下期無法自動驗收 state 翻轉（v0.6 接 triggers 的全部意義就在這）。
  6. 量化佐證不得取自 events——那是 Google News，會造成同一則新聞被數兩次。
     這一項是 FAIL，不是 warn。
 
@@ -264,6 +266,29 @@ def main():
                 fails.append(f"index 本期 trigLit={me['trigLit']} ≠ 實際已觸發數 {lit}")
             print(f"[{'ok ' if len(fails) == n2 else 'FAIL'}] "
                   f"觸發器對帳（{lit}/{len(q['triggers'])} 已觸發）")
+
+        # watch[] 的 trigger 綁定：提到 trigger 名稱就必須用 <code>正確 id</code> 標。
+        # v0.6 接 triggers 的全部意義是「下期驗收直接查 state 翻轉」——
+        # id 標錯或漏標，那個自動化就不存在。第 002 期 7 條裡有 4 條是壞的。
+        n_w = len(fails)
+        tids = {x["id"] for x in bt}
+        bad_w = []
+        for w in d.get("watch", []):
+            plain = clean(w)
+            named = sorted(i for i in tids if i in plain)      # 該條提到的 trigger id
+            if not named: continue                             # 沒提到 trigger 就不管
+            tagged = set(re.findall(r"<code>([a-z0-9_]+)</code>", str(w)))
+            hit = sorted(set(named) & tagged)
+            if hit: continue                                   # 至少正確標了一個就放行
+            wrong = sorted(x for x in tagged if x not in tids)
+            why = (f"標成 {wrong}（那不是 trigger id）" if wrong else "完全沒用 <code> 標")
+            bad_w.append(f"該條講 {named} 但{why}：{plain[:42]}")
+        if bad_w:
+            fails.append(f"watch 有 {len(bad_w)} 條的 trigger 綁定壞掉——下期無法自動驗收 state")
+        if bt:
+            print(f"[{'ok ' if len(fails) == n_w else 'FAIL'}] "
+                  f"watch 的 trigger 綁定（{len(d.get('watch', []))} 條）")
+            for x in bad_w: print("        ✗", x)
 
         # 量化佐證不得出自 events：那是 Google News，用它會讓同一則新聞
         # 被當成兩個獨立來源，「三方共振」就是假的。這是 FAIL，不是 warn。
