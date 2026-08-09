@@ -21,8 +21,11 @@
  5. 層／維現值與變動 vs history（變動＝現值 − **同架構最早一筆**，不跨改版相減）
  5.5 觸發器對帳：quant.triggers 的 id 與 state 必須與監控庫一致，
     index.json 的 trigLit（已觸發數）也要對得上。
- 5.6 watch[] 的 trigger 綁定：提到 trigger 名稱就必須用 <code>正確 id</code> 標，
-    否則下期無法自動驗收 state 翻轉（v0.6 接 triggers 的全部意義就在這）。
+ 5.6 watch[] 的 trigger 綁定：**寫出了 trigger id 字串**的條目，該 id 必須用
+    <code>id</code> 包起來，否則下期無法自動驗收 state 翻轉
+    （v0.6 接 triggers 的全部意義就在這）。
+    ⚠️ 限制：只認 id 字串。用純中文描述門檻而完全不寫 id 的 watch 抓不到——
+    那要靠 prompt 的自律，機器擋不了。
  6. 量化佐證不得取自 events——那是 Google News，會造成同一則新聞被數兩次。
     這一項是 FAIL，不是 warn。
 
@@ -164,6 +167,8 @@ def main():
     bad_s = sorted(set(bad_s))
     if bad_s:
         fails.append(f"evidence[].s 有非法值 {bad_s}——合法值只有 {sorted(VOICE)}")
+    print(f"[{'ok ' if not bad_s else 'FAIL'}] evidence[].s 合法值")
+    for x in bad_s: print("        ✗", x)
     bad_res = []
     for s in d['sections']:
         if s.get('id') != 'resonance': continue
@@ -184,7 +189,7 @@ def main():
     quant_ev = [e for _, e in ev if e.get('s') == '監控']
     if not (a.bub and os.path.exists(a.bub)):
         warns.append("未提供 --bub，跳過量化側檢查")
-        skipped.append("量化側存在性／層維變動／events 檢查")
+        skipped.append("量化側存在性／層維變動／觸發器對帳／watch 綁定／events 檢查")
     else:
         b = json.load(open(a.bub, encoding='utf-8'))
         # 合法的量化欄位名＝指標 id（動態讀，v2 為 22 項）＋ 台股項目 id
@@ -275,14 +280,18 @@ def main():
         bad_w = []
         for w in d.get("watch", []):
             plain = clean(w)
-            named = sorted(i for i in tids if i in plain)      # 該條提到的 trigger id
-            if not named: continue                             # 沒提到 trigger 就不管
+            # 判定依據：該條明文裡出現了正確的 trigger id 字串。
+            # 用 (?<![a-z0-9_]) 邊界避免日後新增短 id 時互吃（例如 cpi 吃到 cpi4）。
+            named = sorted(i for i in tids
+                           if re.search(rf"(?<![a-z0-9_]){re.escape(i)}(?![a-z0-9_])", plain))
+            if not named: continue        # 完全沒寫出任何 trigger id 就不管（見 docstring 限制）
             tagged = set(re.findall(r"<code>([a-z0-9_]+)</code>", str(w)))
-            hit = sorted(set(named) & tagged)
-            if hit: continue                                   # 至少正確標了一個就放行
+            miss = sorted(set(named) - tagged)                 # 提到卻沒標的，逐一要求
+            if not miss: continue
             wrong = sorted(x for x in tagged if x not in tids)
-            why = (f"標成 {wrong}（那不是 trigger id）" if wrong else "完全沒用 <code> 標")
-            bad_w.append(f"該條講 {named} 但{why}：{plain[:42]}")
+            why = f"漏標 {miss}"
+            if wrong: why += f"（該條標的 {wrong} 不是 trigger id）"
+            bad_w.append(f"{why}：{plain[:42]}")
         if bad_w:
             fails.append(f"watch 有 {len(bad_w)} 條的 trigger 綁定壞掉——下期無法自動驗收 state")
         if bt:

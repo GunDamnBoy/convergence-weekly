@@ -4,7 +4,7 @@
 主題匯流訊號報 · 備料（排程流程的第一步，機械環節全部在這裡）
 
 用法：
-    python3 prepare.py [--work work] [--no-clone] [--site /path/to/convergence-weekly]
+    python3 prepare.py [--work work] [--no-clone] [--site …] [--emit-skeleton]
 
 做的事（全部確定性，不需要模型參與）：
   1. clone 四庫（adv / pod / bub / cotd；--no-clone 可重用既有的 work/）
@@ -13,8 +13,13 @@
        work/pod.txt   每集三行＋完整 crossCut，目標 ≤24K（summary 截斷 420→300→220）
        work/bub.txt   composite＋三層＋quadrant＋triggers＋22 項指標＋stage＋tw＋events
        work/cotd.txt  每張圖六行（不含 series/option），超過 15K 先截 reading 至 300 字
-  3. 寫 work/PREP.md：涵蓋統計、各庫最新日期、上一期資訊與 watch 清單全文、
-     triggers 狀態表、樣本偏薄旗標、零新增資料提示、摘要層大小
+  3. 寫 work/PREP.md：涵蓋統計與摘要層大小、各庫最新日期、上一期資訊與 watch 清單全文、
+     **量化底盤全文**（composite／象限／階段／台股熱度／三層變動）、triggers 狀態表、
+     樣本偏薄旗標、零新增資料提示
+  3b. --emit-skeleton 時另寫 work/skeleton.json：單期 JSON 骨架。
+     quant 的**數值**欄位全部抄好（composite／zone／stage.current／twHeat／quadrant／
+     三層與變動／triggers 全帶），但 dims[].note、stage.delta、callout、quant.note
+     仍標「（填：…）」——那幾欄是判斷不是抄寫。
   4. 印出 PREP.md 到 stdout——排程主線只需要讀這份與摘要層，不必碰任何原始 JSON
 
 exit code：0 正常；3 = 四庫全部沒有比上一期更新的資料（依規格 §2.1 不應產期）
@@ -170,7 +175,7 @@ def build_cotd(files):
         txt, nch = render(rlim)
     return txt, nch
 
-def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today):
+def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
     """產出單期 JSON 骨架：所有能從資料推導的欄位全部填好。
 
     主線只需要填 verdict / sections / watch / gaps / about.run。
@@ -208,8 +213,11 @@ def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today):
     zone_label = (f"{zone['label']}（{(_prev_max or 0)}–{zone['max']}）" if zone
                   else "（填：對照 bub.txt 的 zones）")
     issue_no = prev["issue"] + 1
-    rng_n = f"{adv_f[0][0][5:].replace('-','/')} – {adv_f[-1][0][5:].replace('-','/')}" if adv_f else "—"
-    rng_q = f"{same[0]['date'][5:].replace('-','/')} – {(bub.get('meta') or {}).get('built','')[5:].replace('-','/')}" if same else "—"
+    _nd = sorted({x[0] for x in (adv_f + pod_f + cotd_f)})
+    rng_n = f"{_nd[0][5:].replace('-','/')} – {_nd[-1][5:].replace('-','/')}" if _nd else "—"
+    _built = str((bub.get("meta") or {}).get("built") or "")[:10]
+    rng_q = (f"{same[0]['date'][5:].replace('-','/')} – {_built[5:].replace('-','/')}"
+             if same and _built else "—")
     return {
         "date": str(today), "issue": issue_no,
         "label": f"第 {issue_no:03d} 期 · {today.year} 年 {today.month} 月 {today.day} 日",
@@ -217,18 +225,19 @@ def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today):
         "range": {"quant": rng_q, "narrative": rng_n},
         "headline": "（填：一句話，要有觀點，不是主題標籤）",
         "coverage": [
-            {"k": "投顧知識庫", "v": f"{len(adv_f)} 天"},
-            {"k": "節目知識庫", "v": f"{len(pod_f)} 天"},
+            {"k": "投顧知識庫", "v": f"{len(adv_f)} 天 / {counts.get('card',0)} 則卡片"},
+            {"k": "節目知識庫", "v": f"{len(pod_f)} 天 / {counts.get('ep',0)} 集"},
             {"k": "AI 泡沫監控", "v": f"history {len(h)} 筆 / {len(bub.get('indicators',[]))} 項指標"},
-            {"k": "每日五圖", "v": f"{len(cotd_f)} 天"},
+            {"k": "每日五圖", "v": f"{len(cotd_f)} 天 / {counts.get('chart',0)} 張"},
         ],
         "verdict": ["（填：段 1，必須表態）", "（填：段 2，上一期 watch 逐條驗收）",
                     "（填：段 3，本期唯一無可取代的發現）"],
         "quant": {
-            "schemaVer": "v2",
+            "schemaVer": f"v{(bub.get('meta') or {}).get('version', 2)}",
             "composite": bub.get("composite"),
             "zone": zone_label,
-            "note": f"基準 {first['date'] if first else '—'}（同架構最早一筆）",
+            "note": f"基準 {first['date'] if first else '—'}（同架構最早一筆）"
+                    f"　（填：一句話說明 composite 這期為什麼動）",
             "stage": {"current": st.get("current"), "label": st.get("label", ""),
                       "lit": f"{len(lit)}／{len(st.get('checklist', []))}",
                       "delta": "（填：本期有無新增點亮）"},
@@ -245,8 +254,11 @@ def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today):
                          ("taiwan", "三 · 台股"), ("charts", "四 · 圖表側寫"),
                          ("single", "五 · 單邊訊號"))
         ],
-        "watch": ["（填：每條可觀察可證偽；能對應 trigger 的必須用 <code>trigger_id</code> 標，"
-                  "合法 id：" + "／".join(x["id"] for x in bub.get("triggers", [])) + "）"],
+        # ⚠️ 佔位字串裡刻意不寫真的 trigger id、也不放 <code>——
+        # 否則 verify.py 第 5.6 項會把佔位當成「提到 trigger 卻標錯」而誤報。
+        # 合法 id 清單在 PREP.md 的觸發器表。
+        "watch": ["（填：每條可觀察可證偽。能對應觸發器的條目要用行內 code 標出正確的"
+                  " trigger id，清單見 PREP.md 觸發器表）"],
         "gaps": ["（填：缺天／各庫 updatedLabel 過期／指標 asof 落後／卡片數異常／圖表庫 qa_flags）"],
         "about": {"run": "（填：本期執行紀錄與樣本厚度）",
                   "method": "prepare.py 備料 → 兩個平行子代理讀敘事側 → 主線併入量化底盤合成 → verify.py 逐字回查"},
@@ -357,7 +369,8 @@ def main():
                f"四庫最新日期皆 ≤ 上一期（{prev['date']}）。依規格 §2.1 **不產期**：",
                "在交付訊息寫明「本次未產期」與各庫實際最新日期，不寫任何檔案。"]
     if a.emit_skeleton:
-        sk = build_skeleton(bub, a.site, adv_f, pod_f, cotd_f, prev, today)
+        sk = build_skeleton(bub, a.site, adv_f, pod_f, cotd_f, prev, today,
+                            {"card": ncard, "ep": nep, "chart": nch})
         sp = os.path.join(W, "skeleton.json")
         with open(sp, "w", encoding="utf-8") as f:
             json.dump(sk, f, ensure_ascii=False, indent=1)

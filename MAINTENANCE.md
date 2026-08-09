@@ -44,8 +44,9 @@ git push -u origin main
 4. 動到單期 JSON schema 時，**這一組要一起改**：brief 第 3 節、
    `index.html`（`renderItem`／`renderQuant`／`renderTrend`／`renderErrata` 與章節編號計算）、
    `verify.py` 與 `healthcheck.py`（必備欄位清單與 `CANON`）、
-   **`make_index.py` 與 `prepare.py`**（v0.7 起：前者硬依賴 `quant` 欄位組 index 條目，
-   後者硬依賴上一期的 `watch` 與 index 條目——schema 一動它們會靜靜地產出錯的東西）。
+   `make_index.py`（硬依賴 `quant` 欄位組 index 條目）、
+   **`prepare.py`**（v0.9 起它的 `build_skeleton()` 硬依賴整份單期 schema，
+   `PREP.md` 的量化底盤與觸發器兩區也是——schema 一動它們會靜靜地產出錯的東西）。
    ⚠️ `build_issue.py` **不在這一組裡**——它已凍結在第 001 期，刻意不追著改。
 5. 事故經過與被否決的選項寫本檔第 6 節
 
@@ -132,9 +133,10 @@ git push -u origin main
 
 第 4 步：寫檔
   **以 work/skeleton.json 為底**寫 site/data/YYYY-MM-DD.json——
-  它的 date／issue／label／range／coverage 與**整個 quant 區**（composite／zone／note／
-  stage／twHeat／quadrant／三層／7 條 triggers）已經填好，直接沿用。
-  你只要填標「（填：…）」的欄位與 sections[].items。**不要重打 quant**——
+  date／issue／label／range／coverage 已填好；quant 的**數值欄位**（composite／zone／
+  stage.current／twHeat／quadrant／三層與變動／7 條 triggers）也已從監控庫抄好，直接沿用。
+  你要填的是全部標「（填：…）」的欄位（含 quant 裡的 dims[].note／stage.delta／
+  callout／quant.note 四處）與 sections[].items。**不要重打 quant 的數值**——
   那一整區是機械抄寫，手打既慢又會抄錯（第 002 期就是這樣把 watch 的
   trigger id 標成 indicator id）。
   不得改寫任何既有單期檔；schema 細節見 brief 第 3 節，
@@ -199,6 +201,9 @@ git push -u origin main
   分群邏輯不同（主題 vs 資料更新頻率），`indicators` 的 id 也全換。
   `history` 舊筆保留 D 鍵，算變動時基準只能取同架構的最早一筆。
   `quant.schemaVer` 與 `index.json` 的 `quantVer` 就是用來標這條線的，漏寫會 FAIL。
+- **`verify.py` 第 5.6 項只認 id 字串。** 用純中文描述門檻而完全不寫 trigger id 的
+  `watch` 條目它抓不到——那要靠 prompt 的自律。它能擋的是「寫了 id 卻沒用 `<code>` 標」
+  與「標成 indicator id」，第 002 期那 4 條都屬於後兩類。
 - **`verify.py` 是發布前檢查，不是歷史稽核工具。** 拿舊期回頭驗今天的監控資料一定會 FAIL
   （指標 id 退役、架構改版），那不代表那一期當時是錯的。腳本的錯誤訊息已同時說明兩種情況。
 

@@ -247,8 +247,10 @@ convergence-weekly/
 
 「共識裂縫」不是章節，是掛在 item 上的 `tags` 標籤（見第 0 節）。
 要增減章節數或動 schema，**這一組要一起改**：本節、`index.html`、
-`verify.py` 與 `healthcheck.py`（`CANON` 與必備欄位）、`make_index.py` 與 `prepare.py`
-（前者硬依賴 `quant` 的欄位、後者硬依賴上一期的 `watch` 與 index 條目）。
+`verify.py` 與 `healthcheck.py`（`CANON` 與必備欄位）、`make_index.py`（硬依賴 `quant` 欄位）、
+**`prepare.py`**（v0.9 起它的 `build_skeleton()` **硬依賴整份單期 schema**：頂層欄位名、
+`dims` 的 id 與排序、`triggers` 子欄、`sections` 的五個 id 與標題、`watch` 的 `<code>` 慣例、
+`zones` 的 `label`／`max` 結構；`PREP.md` 的「量化底盤」與「觸發器」兩區也一樣）。
 `build_issue.py` 已凍結，不在組內。
 
 > 第 001 期是 4 節（無 `charts`），`verify.py` 以 `LEGACY` 清單放行。
@@ -302,7 +304,7 @@ convergence-weekly/
 }
 ```
 
-**兩個外殼沒明講、但 `verify.py` 硬依賴的慣例：**
+**三個外殼沒明講、但 `verify.py` 硬依賴的慣例：**
 
 1. **量化佐證必須用 `<code>欄位名</code>` 包住欄位名。**
    ```
@@ -376,8 +378,11 @@ python3 site/prepare.py --work work --site site --emit-skeleton
 `bub.txt` 只在要查某個特定指標的 `score`／`zone`／`asof` 時才需要讀。
 
 `--emit-skeleton` 另外寫出 `work/skeleton.json`：**單期 JSON 骨架**，
-`date`／`issue`／`label`／`range`／`coverage` 與**整個 `quant` 區**都已填好
-（見第 5 步）。
+`date`／`issue`／`label`／`range`／`coverage` 已填好，
+`quant` 的**數值欄位**（`composite`／`zone`／`stage.current`／`twHeat`／`quadrant`／
+三層與變動／`triggers` 全帶）也已從監控庫抄好。
+但 `quant` 裡有四處仍要你填——`dims[].note`、`stage.delta`、`callout`、`quant.note`——
+**那四欄是判斷不是抄寫**（見第 5 步）。
 
 **摘要層規格**（＝ `prepare.py` 的實作規格；改這裡就要改它，反之亦然）：
 
@@ -403,19 +408,21 @@ python3 site/prepare.py --work work --site site --emit-skeleton
 - **子代理 B（讀 pod.txt）** → 8–12 個主題：核心主張、**講者分歧（最重要）**、出現強度、
   2–4 條逐字佐證；另附「podcast 已在講但新聞沒跟上的事」5–8 條。
 
-兩者都要求：**佐證逐字取自檔案，寧可少寫也不要編。**
+兩者都要求：**佐證逐字取自檔案，寧可少寫也不要編**；
+**一次把整份檔案讀完，不要分段讀**——分段會產生多次快取寫入（×2 權重），是實測可見的成本。
 
 ### 第 4 步：主線合成（**不可外包**）
 合成需要同時握有各邊，這是整套系統唯一無法拆分的環節。
-**量化側（`bub.txt` 與 `cotd.txt`）由主線自己讀**——兩份都很小，而且它們是裁判，
-不該經過另一個模型的轉述。子代理只負責兩個敘事庫。
+**量化側由主線自己讀**——**先看 `PREP.md` 的「量化底盤」區塊**（composite／象限／階段／
+台股熱度／三層變動／觸發器表都在那裡）與 `cotd.txt`；需要查某個特定指標的
+`score`／`zone`／`asof` 時才另外讀 `bub.txt`。它們是裁判，不該經過另一個模型的轉述。子代理只負責兩個敘事庫。
 
 > 為什麼圖表庫歸量化側、不派第三個子代理：
 > 它的選題來自投顧庫，派子代理獨立萃取「主題」只會複述投顧側已經有的東西，
 > 平白多一份會製造假共振的材料。它有價值的是**數字**，而數字要精確、要可回查，
 > 正是不該被另一個模型壓縮的那種東西。
 
-**比對的順序有講究**：先把量化側（監控庫的層分數與象限、圖表庫的重製數字）攤開，再拿兩份敘事主題去對。
+**比對的順序有講究**：先把量化側攤開（`PREP.md` 的量化底盤 ＋ `cotd.txt` 的重製數字），再拿兩份敘事主題去對。
 反過來做（先讀敘事再看指標）會讓你只找得到「指標支持敘事」的部分，找不到背離。
 
 **驗收上一期的 `watch` 清單**：上期點名要盯的事，這期發生了嗎？跨過門檻了嗎？
@@ -425,10 +432,11 @@ python3 site/prepare.py --work work --site site --emit-skeleton
 ### 第 5 步：寫檔
 
 1. **以 `work/skeleton.json` 為底**寫 `data/YYYY-MM-DD.json`（**不得改寫任何既有單期檔**）。
-   骨架的 `quant` 整區（`composite`／`zone`／`note`／`stage`／`twHeat`／`quadrant`／
-   三層／7 條 `triggers`）已由 `prepare.py` 從監控庫抄好，**直接沿用、不要重打**——
-   那一整區是機械抄寫，手打既慢又會抄錯（第 002 期就是這樣把 `watch` 的
-   trigger id 標成 indicator id）。你只要填標「（填：…）」的欄位與 `sections[].items`。
+   骨架的 `quant` **數值欄位**已由 `prepare.py` 從監控庫抄好，**直接沿用、不要重打**——
+   那些是機械抄寫，手打既慢又會抄錯（第 002 期就是這樣把 `watch` 的
+   trigger id 標成 indicator id）。
+   你要填的是全部標「（填：…）」的欄位（含 `quant` 裡的 `dims[].note`／`stage.delta`／
+   `callout`／`quant.note` 四處）與 `sections[].items`。
 2. 跑 `python3 site/make_index.py site/data/YYYY-MM-DD.json`——
    它自動組出快照（`quantVer`／`quadrant`／`trigLit`）、填當下實際發布時間、保留 `errata`。
    **不要手工編輯 `index.json`。**
@@ -455,11 +463,12 @@ python3 verify.py data/YYYY-MM-DD.json \
 > **跳過不算 FAIL，但也不給綠燈**——`verify.py` 會印黃燈並回傳 `exit 2`。
 > 「沒有 FAIL」不等於「檢查有跑」；看到黃燈就是還不能發布。
 
-它檢查十件事：必備欄位與章節結構（`sections` 的 id 與順序）、`evidence[].s` 合法值、
-`index.json` 量化快照（v2 另驗 `quantVer`／`quadrant`／`trigLit`）、敘事側逐字回查（含 `list[]`）、
-**共振的來源獨立性（投顧與圖表計為同一票）**、量化側欄位名存在性、
-層／維現值與變動 vs `history`（**不跨改版相減**）、觸發器對帳、
-**`watch` 的 trigger 綁定**、量化佐證未取自 `events`。
+它檢查十件事，編號與腳本 docstring 一致：
+①必備欄位與章節結構（`sections` 的 id 與順序）②`index.json` 量化快照（v2 另驗 `quantVer`／
+`quadrant`／`trigLit`）③敘事側逐字回查（含 `list[]`）③′`evidence[].s` 合法值
+③″**共振的來源獨立性（投顧與圖表計為同一票）**④量化側欄位名存在性
+⑤層／維現值與變動 vs `history`（**不跨改版相減**）⑤′觸發器對帳
+⑤″**`watch` 的 trigger 綁定**⑥量化佐證未取自 `events`。
 
 > ⚠️ **不要自己先逐條回查一遍再跑它。** 那正是它第 3 項在做的事，做兩遍等於白花一次，
 > 而且手動那次還會漏掉 `list[]`（單邊訊號整節都在那裡）。直接跑，看報告修。
