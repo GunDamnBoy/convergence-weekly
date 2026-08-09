@@ -23,7 +23,12 @@
     "heat": 67.6,
     "support": 63.9
    },
-   "trigLit": 1
+   "trigLit": 1,
+   "errata": [
+    "本期 <code>watch</code> 七條裡有 <b>四條的 trigger 綁定是壞的</b>：第 1 條標成 <code>ccc</code>（那是 indicator id，trigger 是 <code>ccc12</code>）、第 2 條講 <code>hy80</code> 卻標成 <code>stage</code>、第 3 條（<code>y10_5</code>）與第 4 條（<code>cpi4</code>）只寫文字沒有用 <code>&lt;code&gt;</code> 標。後果是下一期無法用程式查 <code>state</code> 翻轉來驗收，只能人工判讀——而那正是 v0.6 接入 triggers 的全部目的。",
+    "成因：<code>quant</code> 整區與 <code>watch</code> 當期是手打的，抄寫時把 indicator id 與 trigger id 混用。v0.9 已修：<code>prepare.py --emit-skeleton</code> 直接產出填好 <code>quant</code> 的骨架，<code>verify.py</code> 新增第 5.6 項檢查會擋下這種綁定錯誤。",
+    "依「既有單期檔永不改寫」的規則，本期內文不修改。受影響的只有 <code>watch</code> 的可程式化驗收，其餘章節的佐證與計票經 <code>verify.py</code> 檢查無誤。"
+   ]
   },
   {
    "date": "2026-08-03",

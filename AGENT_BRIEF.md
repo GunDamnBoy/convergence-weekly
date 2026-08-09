@@ -186,8 +186,10 @@ convergence-weekly/
 │                          （含保留 errata、防覆寫閘門），那部分與版本無關仍然有效。
 │                          現行 schema 一律以本節為準
 ├─ prepare.py            ← **備料**（每週第 1–2 步）：clone 四庫、產出四份摘要層、
-│                          印 PREP.md（涵蓋統計＋上期 watch＋triggers 狀態＋零新增判定）。
-│                          排程只跑它，不要自己寫摘要程式
+│                          印 PREP.md（涵蓋統計＋**量化底盤全文**＋上期 watch＋
+│                          triggers 狀態＋零新增判定）。加 --emit-skeleton 另外寫出
+│                          work/skeleton.json：單期骨架，quant 整區已填好。
+│                          排程只跑它，不要自己寫摘要程式，也不要讀它的原始碼
 ├─ make_index.py         ← **index 快照組裝**（第 5 步後半）：從單期 JSON 自動組
 │                          quantVer／quadrant／trigLit／updated，保留 errata
 ├─ verify.py             ← **發布前檢查**。每期必跑，不要自己重寫一支
