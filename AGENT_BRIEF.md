@@ -257,9 +257,10 @@ convergence-weekly/
 「共識裂縫」不是章節，是掛在 item 上的 `tags` 標籤（見第 0 節）。
 要增減章節數或動 schema，**這一組要一起改**：本節、`index.html`、
 `verify.py` 與 `healthcheck.py`（`CANON` 與必備欄位）、`make_index.py`（硬依賴 `quant` 欄位）、
-**`prepare.py`**（v0.9 起它的 `build_skeleton()` **硬依賴整份單期 schema**：頂層欄位名、
-`dims` 的 id 與排序、`triggers` 子欄、`sections` 的五個 id 與標題、`watch` 的 `<code>` 慣例、
-`zones` 的 `label`／`max` 結構；`PREP.md` 的「量化底盤」與「觸發器」兩區也一樣）。
+**`prepare.py`**（`build_skeleton()` 硬依賴整份單期 schema；`PREP.md` 的量化底盤與觸發器兩區也是）、
+**`publish.py`**（v1.0 起：`build_entry` 與 `fold_calls` 硬依賴 `quant` 與 `calls` schema）、
+**`cwlib.py`**（共用函式的正本——`baseline`／`dim_ids`／指紋都在這裡，規則只改這一份）、
+**`index.html` 的 `S()` 白名單**（新增可含 HTML 的欄位時要確認跳脫路徑）。
 `build_issue.py` 已凍結，不在組內。
 
 > 第 001 期是 4 節（無 `charts`），`verify.py` 以 `LEGACY` 清單放行。

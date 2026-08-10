@@ -36,7 +36,9 @@
 
 | 日期 | 版本 | 一句話 | 動到的檔案 | 類型 | 收工 commit |
 |---|---|---|---|---|---|
+| 2026-08-10 | **v1.0** | 深度總檢＋兩個新功能：發布閘門、全面數值對帳、XSS 跳脫、訊號帳本（記分板）、上游改版偵測、前端長期化 | ＋`publish.py` ＋`cwlib.py` ＋`.gitignore` `prepare.py` `verify.py` `make_index.py` `healthcheck.py` `index.html` `AGENT_BRIEF` `MAINTENANCE` | 架構＋功能＋安全 | `9f1ddbd5`＋ |
 | 2026-08-09 | **v0.9** | 依第 002 期實跑的用量報告優化：骨架化、禁重複勞動、修 watch 綁定漏洞 | `prepare.py` `verify.py` `AGENT_BRIEF` `MAINTENANCE` `data/index.json` | 效能＋修正 | `7acb1d29`＋ |
+| **v1.0** | 22,371 | 3,979 | **26,350** | 7 | 16 |
 | 2026-08-08 | **v0.8** | 建立本檔：逐版詳述、度量趨勢、回溯要點、失效模式歸納 | ＋`CHANGELOG.md` `healthcheck.py` `AGENT_BRIEF` `MAINTENANCE` | 流程 | `46f4192b`＋ |
 | 2026-08-08 | **v0.7.1** | 瘦身後複查，修 12 處含一個零新增判定 bug | `prepare.py` `make_index.py` `AGENT_BRIEF` `MAINTENANCE` | 修正 | `d14797b9` |
 | 2026-08-08 | **v0.7** | token 優化：備料與 index 組裝腳本化、prompt 減半 | ＋`prepare.py` ＋`make_index.py` `AGENT_BRIEF` `MAINTENANCE` `healthcheck.py` | 效能 | `d14797b9` |
@@ -92,6 +94,9 @@
   **修正版通常會讓數字微升，這是正常的**——不要為了守數字而不寫清楚。
 - v0.8 把變更紀錄整段移出 `MAINTENANCE.md`（18,086 → 13,786 字），
   但那**不計入每週成本**——維護文件排程不讀。列在這裡只是提醒別把它跟每週必讀搞混。
+- v1.0 合計升到 26K——這一版是**用固定成本買保險**：新增的字全是規則
+  （calls 登帳準則、publish 流程、上游改版分支），對應的是三條原本沒被守住的核心假設。
+  與 v0.7 的教訓一致：省 token 的正道是砍回合數與重複勞動，不是砍規則。
 - 表格沒有列「實際 token 用量」，因為那受當週資料量影響（投顧卡片數會變），
   不是穩定的比較基準。要比就比這裡的固定成本。
 
@@ -158,6 +163,73 @@
 ---
 
 ## 4. 各版本詳述
+
+### v1.0 — 2026-08-10 · 架構＋功能＋安全
+
+**動機**　使用者要求用最新能力做一次深度總檢並思考新功能。子代理以陌生工程師視角審查後，
+發現**三條一直以為有保護、實際上沒有的核心假設**：
+①「歷史永不改寫」只是 prompt 裡的一句話，且 dashpush 讓 verify 實際跑在發布之後；
+② composite／twHeat／quadrant／zone 從來沒有被對過帳（verify 第 5 項只迴圈 dims）；
+③ 逐字回查只驗最長片段（數字全在沒被驗的短片段裡）、三來源語料併成一坨（標錯 s 照樣過）。
+另外外殼的 `esc()` 是死碼——上游字串一路 innerHTML 到底，零跳脫。
+
+**逐檔改動**
+
+- **新增 `publish.py`（發布閘門，唯一發布路徑）**：草稿 → 不可改寫守衛 → 組 index →
+  折入 calls → verify 全過 → 原子寫入 data/（單期檔＋index＋calls＋upstream 指紋）。
+  任何一步失敗 data/ 一個位元組都不動。exit 0/1/2/3 各有語意。
+- **新增 `cwlib.py`（共用函式正本）**：`baseline`（同架構最早一筆，曾寫四遍）、
+  `dim_ids`／`schema_ver`（「是不是 v2」曾有五種寫法）、`is_lit`（state 真值統一）、
+  `zone_label`、`upstream_fingerprint`／`diff_fingerprint`、`need`（可行動的缺欄位錯誤）、
+  `atomic_write_json`。
+- `verify.py`：**quant vs 監控庫逐欄對帳**（composite／twHeat／stage／quadrant／regime／
+  zone 標籤）；**index 快照值層級對帳**；**逐來源回查**（corpora dict，標錯 s 會被指出
+  「在別的來源找得到」）；**全片段回查**取代只驗最長段；**量化佐證數字 token 對帳**
+  （每個數字必須存在於監控庫原始檔）；值域 0–100；佐證日期格式；重複佐證偵測；
+  空節擋下；watch 過度標記；缺結構欄位 short-circuit。
+- `prepare.py`：clone timeout 180s＋list args；目錄不存在（上游改結構）與窗口零檔分開報；
+  `delta` 無基準時填 `None` 不再假裝 0.0；跨年日期標籤保留年份；index 空清單防護；
+  **上游指紋 diff**（PREP.md 頂部 🛑 段）；**帳本攤開**（未結案帳目逼驗收）。
+- `make_index.py`：找回 `is_newest`（重跑舊期不推進發布時間）；entry 以 merge 保留既有欄位；
+  原子寫入。保留為維護用手動工具，正式流程走 publish.py。
+- `index.html`：**`S()` 白名單跳脫**（全部欄位過濾，僅放行 `<b>/<code>/<br>`，實測
+  script／img onerror 注入被擋、白名單保留）；期別按鈕改最近 12 顆＋下拉；
+  **趨勢圖日期 x 軸**（跳週不再假裝時間均勻）＋缺期斷線＋40 點降採樣；
+  triggers >8 條收折；快取分級（index 永遠最新、單期檔以 updated 當版本）；
+  hashchange 監聽＋pushState；**「判斷紀錄」記分板**（讀 calls.json 顯示戰績與逐筆帳目）。
+- `healthcheck.py`：idl 未定義防護；node 檢查改 tempfile＋全部 script 區塊；
+  updated 檢查容忍跨午夜（+1 天）；calls.json／upstream.json 解析與統計；檔案清單補三檔。
+- `.gitignore`：收掉 work/（曾有被 dashpush 整包 commit 的風險）。
+
+**新功能一：訊號帳本（記分板）**
+單期 JSON 新增選填 `calls{open[],close[]}`——可證偽判斷登帳（claim＋judge 必填，
+judge 優先綁 trigger），publish 機械折入 `data/calls.json`（唯一性／引用存在性／
+result 合法性驗證，錯了整期不發布）。PREP.md 每期攤開未結案帳目逼驗收。
+站台「判斷紀錄」區塊顯示 N 命中 M 落空 K 未決與逐筆帳目。
+**它回答使用者最根本的問題：這套系統的判斷值不值得信。**
+
+**新功能二：上游改版偵測**
+`cwlib.upstream_fingerprint` 取七項指紋（dims 鍵／**dimMeta 權重**／triggers id＋name 全文／
+indicators id／tw items／stage checklist 全文／zones 門檻表），基準存 `data/upstream.json`
+（publish 成功後更新）。prepare 對基準做**明文 diff**（不是只比 hash），變更列在 PREP.md
+頂部的 🛑 段落，並要求寫進本期 gaps。權重是最無聲的改版——欄位全不變、composite 意義已變。
+
+**被否決的選項**
+- 「dashpush 加 .publish-lock 機制」——否決，那要改本機 launchd 腳本，跨系統耦合；
+  改成「檢查前不落地」在本 repo 內就能守住同一件事。
+- 「數字 token 對帳做成敘事側也驗」——否決，敘事側數字格式變體太多（％／成／億），
+  誤報率會高到每週都要人工排除；先只對量化側（格式可控）。
+
+**驗證方式**　publish 三道閘負面測試（verify 擋下 exit 1／竄改守衛 exit 2／calls 折帳錯誤）；
+XSS 注入實測（script 與 img onerror 被跳脫、b/code 白名單保留）；趨勢圖斷線與 12+下拉
+Node 模擬渲染；兩期歷史檔對帳全綠；healthcheck PASS 26／FAIL 0；子代理獨立複查。
+
+**回溯要點**　⚠️ 這一版把發布流程換掉了：退掉 publish.py 必須同時把 prompt 第 4 步退回
+v0.9 的 make_index＋verify 流程，否則排程會呼叫不存在的檔案。`calls.json`／`upstream.json`
+退掉後站台記分板自動隱藏（fetch 失敗靜靜略過），無資料相依。cwlib.py 被四支腳本 import，
+不可單獨退。
+
+---
 
 ### v0.9 — 2026-08-09 · 效能＋修正
 
