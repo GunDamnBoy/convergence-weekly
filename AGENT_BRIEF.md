@@ -180,6 +180,8 @@ convergence-weekly/
 ├─ index.html            ← 外殼。極少需要動
 ├─ data/
 │   ├─ index.json        ← 期別清單 ＋ 每期量化快照（跨期趨勢圖靠它）
+│   ├─ calls.json        ← **訊號帳本**：可證偽判斷的登帳與結案，站台顯示戰績
+│   ├─ upstream.json     ← 監控庫指紋基準（上游改版偵測用，publish 成功後更新）
 │   └─ YYYY-MM-DD.json   ← 每期一檔，永不刪除、永不改寫
 ├─ build_issue.py        ← **已凍結在第 001 期（v1 六維、4 節），不要照抄它的結構。**
 │                          它示範的是「怎麼寫檔、怎麼更新 index.json」這層機制
@@ -192,7 +194,14 @@ convergence-weekly/
 │                          排程只跑它，不要自己寫摘要程式，也不要讀它的原始碼
 ├─ make_index.py         ← **index 快照組裝**（第 5 步後半）：從單期 JSON 自動組
 │                          quantVer／quadrant／trigLit／updated，保留 errata
-├─ verify.py             ← **發布前檢查**。每期必跑，不要自己重寫一支
+├─ publish.py            ← **發布閘門（v1.0 起唯一的發布路徑）**：草稿 → verify 全過
+│                          → 才原子寫入 data/（單期檔＋index＋calls 帳本＋upstream 指紋）。
+│                          內建「歷史永不改寫」守衛——dashpush 每 180 秒無條件推送，
+│                          檔案一進 data/ 就等於發布，所以檢查必須在寫入之前
+├─ cwlib.py              ← 共用函式（baseline／schema／is_lit／指紋／原子寫入）。
+│                          「同架構最早一筆」曾寫了四遍、「是不是 v2」有五種寫法——
+│                          規則只改這一份
+├─ verify.py             ← **發布前檢查**（由 publish.py 呼叫，也可單獨跑）
 ├─ healthcheck.py        ← 維護用的唯讀健康檢查（跑在維護時，不在產出流程裡）
 ├─ AGENT_BRIEF.md        ← 本檔（規格）
 ├─ MAINTENANCE.md        ← 維護說明、排程 prompt、事故紀錄
@@ -350,6 +359,29 @@ convergence-weekly/
 > 從改版後重新起算，圖上標紅色 `v2` 徽章，並在說明文字寫出斷點位置。
 > 累積 4 期後檢視這九格選得對不對（見第 6 節待決事項）。
 
+**`calls`（選填，v1.0 起）——訊號帳本的來源**：
+
+```jsonc
+"calls": {
+  "open": [                                   // 本期新開的可證偽判斷
+    {"id":"c003-1",                           // 全域唯一，建議 c<期號>-<序號>
+     "kind":"divergence|watch|verdict",
+     "claim":"CCC 利差將在兩期內升破 12%",      // 判斷本身，一句話
+     "judge":"<code>ccc12</code> state 翻轉",  // 裁判方法：能對應 trigger 就寫 trigger
+     "deadline":"2026-08-30"}                  // 選填
+  ],
+  "close": [                                  // 對過往帳目的結案裁決
+    {"id":"c002-1","result":"hit|miss|expired|void","note":"一句話裁決理由"}
+  ]
+}
+```
+
+`publish.py` 會把它機械折入 `data/calls.json`（id 唯一性、引用存在性、result 合法性
+都在折入時驗證，錯了整期不發布）。站台的「判斷紀錄」區塊直接讀帳本顯示戰績。
+**登帳準則**：只登可證偽的（有裁判方法＋可觀察）；背離節的甲/乙裁決、有門檻的 watch
+是天然的帳目；「值得觀察」這種不可證偽的敘述不准登帳。
+`PREP.md` 每期會把未結案帳目攤開逼驗收——能裁決的必須在 `calls.close` 結案。
+
 **`errata`（選填）**：既有單期檔永不改寫，所以**發布後才發現的問題掛在這裡**，
 由外殼渲染成期別按鈕下方的黃色橫幅。原文一個字都不動，錯誤在旁邊講清楚。
 這是「歷史全部保留」與「不在頁面上說謊」兩條原則唯一能同時滿足的做法。
@@ -431,15 +463,18 @@ python3 site/prepare.py --work work --site site --emit-skeleton
 
 ### 第 5 步：寫檔
 
-1. **以 `work/skeleton.json` 為底**寫 `data/YYYY-MM-DD.json`（**不得改寫任何既有單期檔**）。
+1. **以 `work/skeleton.json` 為底**寫草稿到 **`work/issue.json`**（不要直接寫 `data/`——
+   dashpush 每 180 秒無條件推送，寫進 `data/` 就等於發布，檢查必須在那之前）。
    骨架的 `quant` **數值欄位**已由 `prepare.py` 從監控庫抄好，**直接沿用、不要重打**——
    那些是機械抄寫，手打既慢又會抄錯（第 002 期就是這樣把 `watch` 的
    trigger id 標成 indicator id）。
    你要填的是全部標「（填：…）」的欄位（含 `quant` 裡的 `dims[].note`／`stage.delta`／
    `callout`／`quant.note` 四處）與 `sections[].items`。
-2. 跑 `python3 site/make_index.py site/data/YYYY-MM-DD.json`——
-   它自動組出快照（`quantVer`／`quadrant`／`trigLit`）、填當下實際發布時間、保留 `errata`。
-   **不要手工編輯 `index.json`。**
+2. 跑 `python3 site/publish.py work/issue.json --work work --site site`——
+   它做完全部收尾：不可改寫守衛 → 組 index 快照 → 折入 calls 帳本 → **跑 verify**
+   → 全過才原子寫入 `data/`（單期檔＋index＋calls＋upstream 指紋）。
+   任何一步失敗，`data/` 一個位元組都不會動；修完草稿重跑同一指令即可。
+   **不要手工編輯 `index.json`，也不要自己跑 make_index／verify 再手動複製檔案。**
 3. 不要動 `index.html`，除非 schema 真的變了（變了就是一組一起改，清單見第 3.0 節末）
 
 ### 第 6 步：驗證（不可略過，跑在推送之前）

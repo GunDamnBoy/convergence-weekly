@@ -95,6 +95,10 @@ git push -u origin main
      直接在交付訊息寫明「本次未產期」與各庫實際最新日期，不寫任何檔案，結束。
   ⚠️ PREP.md 出現「樣本偏薄」旗標時，about.run 須註明、共振判定保守；
      圖表側樣本 <3 天時「圖表側寫」節只列可用的，不要硬湊。
+  ⚠️ PREP.md 頂部出現「🛑 上游改版偵測」時：把列出的差異**全部寫進本期 gaps**；
+     涉及維度或權重的，跨期比較依 brief 的斷點規則處理，不要硬接。
+  ⚠️ PREP.md 的「訊號帳本」段列出未結案帳目：能裁決的**必須**在本期 calls.close 結案
+     （result: hit/miss/expired），裁決理由寫進 verdict；還不能裁決的不要動。
 
 第 2 步：兩個子代理平行萃取敘事側（必須平行、必須互相看不到對方的檔案）
   這是正確性問題不是效率問題：同一個上下文讀完兩庫，會在後讀的那庫尋找前一庫講過的東西，
@@ -119,6 +123,9 @@ git push -u origin main
     （PREP.md 觸發器表列了合法 id；注意 ccc12 不是 ccc、hy80 不是 stage）。
     **verify.py 會擋，標錯或漏標就是 FAIL。**
   · 逐條驗收上一期 watch（PREP.md 已附全文），有結果的寫進本期 verdict。
+  · **登帳**：本期可證偽的判斷（背離的甲/乙裁決、有門檻的 watch）用 calls.open 登帳
+    （id 格式 c<期號>-<序號>，claim＋judge 必填，judge 能對應 trigger 就寫 trigger）。
+    「值得觀察」這種不可證偽的敘述不准登帳。schema 見 brief 第 3.1 節。
   · 「本期判斷」3 段，必須表態，不要寫「值得持續觀察」這種話。
   · 圖表側寫節＝數字落地：把敘事的形容詞換成圖表算出的數字；選題本身不是證據。
   · 單邊訊號只標記不判斷（避免把未驗證的東西講成結論）。
@@ -131,38 +138,33 @@ git push -u origin main
   quant 要 schemaVer:"v2"＋note＋quadrant＋triggers 7 條全帶／gaps 必寫進 JSON
   （含缺天、updatedLabel 過期、asof 落後、卡片數異常、圖表庫 qa_flags 五項）。
 
-第 4 步：寫檔
-  **以 work/skeleton.json 為底**寫 site/data/YYYY-MM-DD.json——
-  date／issue／label／range／coverage 已填好；quant 的**數值欄位**（composite／zone／
-  stage.current／twHeat／quadrant／三層與變動／7 條 triggers）也已從監控庫抄好，直接沿用。
-  你要填的是全部標「（填：…）」的欄位（含 quant 裡的 dims[].note／stage.delta／
-  callout／quant.note 四處）與 sections[].items。**不要重打 quant 的數值**——
-  那一整區是機械抄寫，手打既慢又會抄錯（第 002 期就是這樣把 watch 的
-  trigger id 標成 indicator id）。
-  不得改寫任何既有單期檔；schema 細節見 brief 第 3 節，
-  build_issue.py 已凍結在第 001 期，不要照抄它的結構。
-  然後跑 python3 site/make_index.py site/data/YYYY-MM-DD.json——
-  它自動組 index.json 快照（quantVer／quadrant／trigLit／發布時間）並保留 errata，
-  不要手工編輯 index.json。
+第 4 步：寫草稿並發布（一條指令收尾，不要自己拆步驟）
+  **以 work/skeleton.json 為底**寫草稿到 **work/issue.json**——
+  ⚠️ 不要直接寫 site/data/！dashpush 每 180 秒無條件推送，寫進 data/ 就等於發布，
+     檢查必須發生在那之前。
+  date／issue／label／range／coverage 已填好；quant 的**數值欄位**也已從監控庫抄好，
+  直接沿用。你要填的是全部標「（填：…）」的欄位（含 quant 裡的 dims[].note／
+  stage.delta／callout／quant.note 四處）、sections[].items、watch、gaps、calls。
+  **不要重打 quant 的數值**——那是機械抄寫，手打會抄錯
+  （第 002 期就是這樣把 watch 的 trigger id 標成 indicator id）。
+  寫完跑：
+  python3 site/publish.py work/issue.json --work work --site site
+  它做完全部收尾：不可改寫守衛 → 組 index 快照 → 折入 calls 帳本 → 跑 verify（全部檢查，
+  含逐來源逐字回查、數字對帳、quant vs 監控庫對帳、watch 綁定）→
+  **全過才原子寫入 data/**（單期檔＋index＋calls＋upstream 指紋）。
+  任何一步失敗 data/ 一個位元組都不會動——看報告修草稿，重跑同一指令，exit 0 才算發布。
+  ⚠️ 不要自己逐條回查引文（verify 會做，含 list[] 與數字）；
+     不要自己跑 make_index／verify 再手動複製檔案——publish.py 是唯一的發布路徑。
 
-第 5 步：驗證（不可略過，跑在推送之前）
-  ⚠️ **不要自己逐條回查引文**——那正是 verify.py 第 3 項在做的事，做兩遍等於白花一次，
-     而且手動那次還漏掉 list[]。直接跑它，看它的報告修。
-  python3 site/verify.py site/data/YYYY-MM-DD.json \
-    --adv work/adv.txt --pod work/pod.txt --cotd work/cotd.txt --bub work/bub/data.json
-  ⚠️ --bub 吃原始 data.json；四個路徑參數一個都不能省（敘事三份全有或全無，
-     缺任一會整批跳過並回 exit 2 黃燈——黃燈不是通過）。
-  任何 FAIL 就修正該條引用或刪除它，重跑到全部通過（exit 0）才能發布。
-  若動過 index.html，另外抽出 <script> 跑 node --check。
-
-第 6 步：發布與交付
+第 5 步：推送與交付
   用 device_commit_files 寫回本機 ~/convergence-weekly，交給 com.kenny.dashpush 自動推送。
   ⚠️ 不要對本機的 ~/convergence-weekly 跑任何 git 指令（git status 也不行）——
      dashpush 每 180 秒自動 commit＋push，你跑 git 會留下 index.lock 把它永久擋住。
      沙箱裡 clone 的複本不受此限。
   退路：連不到本機就改用 SendUserFile 附上本期 JSON 與 index.json，
         明確告知需要手動放進 repo——不要靜靜地跳過發布。
-  交付訊息寫三行：本期最重要的判斷、上一期 watch 驗收結果、發現的資料缺口。
+  交付訊息寫四行：本期最重要的判斷、上一期 watch 驗收結果、
+  **帳本戰績（publish 輸出的 N 勝 M 敗 K 未決）**、發現的資料缺口。
   附線上網址（帶 cache-buster），確認期別按鈕數量與跨期趨勢點數。
   （趨勢的 v2 六格要累積 2 期 v2 才會出現，只有 1 期時不畫是正常的。）
 ```

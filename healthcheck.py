@@ -68,7 +68,7 @@ if "--metrics" in sys.argv:
 # ── 1. 檔案齊全 ────────────────────────────────────────────────
 for f in ["index.html", "data/index.json", "AGENT_BRIEF.md", "MAINTENANCE.md",
           "build_issue.py", "verify.py", "prepare.py", "make_index.py",
-          "CHANGELOG.md"]:
+          "CHANGELOG.md", "cwlib.py", "publish.py", ".gitignore"]:
     p = os.path.join(REPO, f)
     ok(f"{f} 存在") if os.path.exists(p) else fail(f"{f} 不存在")
 
@@ -91,6 +91,7 @@ try:
 except Exception as e:
     fail(f"index.json 解析失敗：{e}"); idx = None
 
+idl = []
 if idx:
     idl = idx.get("issues", [])
     if len(idl) == len(files):
@@ -151,6 +152,25 @@ if idx:
     if n_err:
         ok(f"勘誤共 {n_err} 條（掛在 index.json，單期檔原文未改寫）")
 
+    # v1.0 新增：訊號帳本與上游指紋（可選檔，存在就要能解析）
+    for fn, what in (("calls.json", "訊號帳本"), ("upstream.json", "上游指紋")):
+        fp2 = os.path.join(D, fn)
+        if os.path.exists(fp2):
+            try:
+                obj = json.load(open(fp2, encoding="utf-8"))
+                if fn == "calls.json":
+                    cs = obj.get("calls", [])
+                    st = {}
+                    for c in cs: st[c.get("status")] = st.get(c.get("status"), 0) + 1
+                    bad_c = [c.get("id") for c in cs
+                             if c.get("status") not in ("open", "hit", "miss", "expired", "void")]
+                    if bad_c: fail(f"calls.json 有非法 status：{bad_c}")
+                    else: ok(f"訊號帳本 {len(cs)} 筆（{st}）")
+                else:
+                    ok(f"上游指紋存在（dims={obj.get('dims')}，triggers {len(obj.get('triggers', []))} 條）")
+            except Exception as e:
+                fail(f"{what} {fn} 解析失敗：{e}")
+
     # 每期都指得到實體檔
     for i in idl:
         fp = os.path.join(REPO, i.get("file", ""))
@@ -160,12 +180,17 @@ if idx:
     # updatedLabel 是否跟得上最新一期（podcast 庫就是栽在這裡）
     if idl:
         newest = idl[0].get("date")
-        lab = str(idx.get("updated", ""))
-        if newest and newest[:10] not in lab:
-            warn(f"updatedLabel／updated（{idx.get('updatedLabel')}／{lab[:10]}）"
-                 f"與最新一期日期 {newest} 不一致——前端顯示的時間會是錯的")
-        else:
-            ok(f"updated 與最新一期（{newest}）一致")
+        lab = str(idx.get("updated", ""))[:10]
+        # 排程 21:30 開跑、寫檔可能跨午夜——updated 落在期別日或隔天都算正常
+        try:
+            _d0 = dt.date.fromisoformat(newest)
+            _d1 = dt.date.fromisoformat(lab)
+            if _d0 <= _d1 <= _d0 + dt.timedelta(days=1):
+                ok(f"updated（{lab}）與最新一期（{newest}）一致（含跨午夜）")
+            else:
+                warn(f"updated（{lab}）與最新一期日期 {newest} 差距異常——前端顯示的時間可能是錯的")
+        except ValueError:
+            warn(f"updated 無法解析為日期：{idx.get('updated')!r}")
 
 # ── 4. 單期內容規範 ────────────────────────────────────────────
 REQ = ("date", "issue", "label", "stamp", "range", "headline", "coverage",
@@ -195,7 +220,7 @@ for d in issues:
             fail(f"{tag} v2 的 quant 缺 triggers[]")
         else:
             lit = sum(1 for x in tg if x.get("state"))
-            me = next((i for i in globals().get("idl", []) if i.get("date") == tag), None)
+            me = next((i for i in idl if i.get("date") == tag), None)
             if me is not None and me.get("trigLit") is not None and int(me["trigLit"]) != lit:
                 fail(f"{tag} index 的 trigLit={me['trigLit']} ≠ 單期實際已觸發數 {lit}")
     # 章節 id 與順序（外殼的尾段編號依長度算，但 id 順序被鎖死）
@@ -215,14 +240,16 @@ if issues:
 # ── 5. 外殼 JS 語法 ────────────────────────────────────────────
 try:
     html = open(os.path.join(REPO, "index.html"), encoding="utf-8").read()
-    m = re.search(r"<script>(.*?)</script>", html, re.S)
-    if not m:
+    blocks = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)   # 全部區塊，不是只驗第一個
+    if not blocks:
         fail("index.html 找不到 <script> 區塊")
     else:
-        tmp = "/tmp/_cw_check.mjs"
-        open(tmp, "w").write(m.group(1))
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".mjs", delete=False) as f:
+            f.write("\n".join(blocks)); tmp = f.name
         r = subprocess.run(["node", "--check", tmp], capture_output=True, text=True)
-        ok("index.html 的 JS 語法正常") if r.returncode == 0 else \
+        os.unlink(tmp)
+        ok(f"index.html 的 JS 語法正常（{len(blocks)} 個區塊）") if r.returncode == 0 else \
             fail(f"index.html JS 語法錯誤：{r.stderr.strip()[:200]}")
 except FileNotFoundError:
     pass

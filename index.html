@@ -47,6 +47,17 @@ h1{font-size:28px;line-height:1.36;margin:10px 0 10px;font-weight:800;letter-spa
   font-variant-numeric:tabular-nums}
 .switch button:hover{border-color:var(--red);color:var(--red)}
 .switch button[aria-current="true"]{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
+.switch select{font:inherit;font-size:13px;padding:5px 9px;border-radius:99px;
+  border:1px solid var(--line);background:var(--bg);color:var(--mid);cursor:pointer}
+/* scoreboard */
+.score{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap;
+  border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:0 0 18px;font-size:13px}
+.score b{font-size:19px;font-variant-numeric:tabular-nums}
+.score .hit b{color:var(--red)}
+.score .lbl2{color:var(--lite);font-size:11.5px;letter-spacing:.06em;font-weight:700}
+.score details{flex-basis:100%;margin-top:2px}
+.score summary{cursor:pointer;color:var(--mid);font-size:12.5px}
+.score ul{margin:8px 0 0;padding-left:18px;font-size:12.5px;color:var(--mid)}
 
 /* verdict */
 .verdict{background:var(--red-l);border-left:5px solid var(--red-line);
@@ -381,9 +392,16 @@ function renderErrata(index, date){
 
 function renderIssue(d, index){
   const src = d.coverage.map(c => `<span>${esc(c.k)} · ${esc(c.v)}</span>`).join('');
-  const btns = index.issues.map(i =>
-    `<button data-file="${i.file}" data-date="${i.date}"
-       aria-current="${i.date === d.date}">第 ${String(i.issue).padStart(3,'0')} 期 · ${i.short}</button>`).join('');
+  // 期別到 50 期時全列按鈕會佔掉兩個螢幕——只列最近 12 顆，其餘進下拉
+  const recent = index.issues.slice(0, 12);
+  const older  = index.issues.slice(12);
+  let btns = recent.map(i =>
+    `<button data-file="${esc(i.file)}" data-date="${esc(i.date)}"
+       aria-current="${i.date === d.date}">第 ${String(i.issue).padStart(3,'0')} 期 · ${esc(i.short)}</button>`).join('');
+  if(older.length)
+    btns += `<select id="olderSel" aria-label="更早期別"><option value="">更早（${older.length} 期）…</option>` +
+      older.map(i => `<option value="${esc(i.file)}"${i.date === d.date ? ' selected' : ''}>` +
+        `第 ${String(i.issue).padStart(3,'0')} 期 · ${esc(i.short)}</option>`).join('') + `</select>`;
 
   let h = `<header>
       <div class="kicker">主題匯流訊號報</div>
