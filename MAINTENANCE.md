@@ -85,7 +85,7 @@ git push -u origin main
   **量化底盤全文**、上一期 watch 清單全文、triggers 狀態表、樣本偏薄旗標），
   並寫出 work/skeleton.json——**單期 JSON 骨架，quant 整區已經填好**。
   讀 PREP.md 與 site/AGENT_BRIEF.md 就夠。
-  ⚠️ **不要讀任何原始 JSON，也不要讀 verify.py／make_index.py／prepare.py 的原始碼**
+  ⚠️ **不要讀任何原始 JSON，也不要讀 verify.py／publish.py／cwlib.py／make_index.py／prepare.py 的原始碼**
      ——它們的用法本 prompt 已經寫完，讀原始碼零收益。
      bub.txt 只在要查某個特定指標的 score／zone／asof 時才讀。
   ⚠️ exit 3 ＝ 四庫都沒有比上一期新的資料。依規格 §2.1 不產期：
@@ -131,9 +131,12 @@ git push -u origin main
 
   結構與格式（verify.py 會逐項擋，違反就是 FAIL 重來——細節見 brief 第 3、5 節）：
   sections 恰 5 節 resonance→divergence→taiwan→charts→single、編號寫在 title 裡／
-  evidence[].s 只能是 監控／投顧／節目／圖表／量化佐證用 <code>欄位名</code> 且不得取自 events／
-  quant 要 schemaVer:"v2"＋note＋quadrant＋triggers 7 條全帶／gaps 必寫進 JSON
-  （含缺天、updatedLabel 過期、asof 落後、卡片數異常、圖表庫 qa_flags 五項）。
+  每節至少一個 item（真沒有就寫「本週無」的說明 item）／
+  evidence[].s 只能是 監控／投顧／節目／圖表、日期一律 M/D（如 8/5）／
+  同一段佐證不得跨 item 重複使用／量化佐證用 <code>欄位名</code> 且不得取自 events／
+  quant 要 schemaVer:"v2"＋note＋quadrant＋triggers 7 條全帶、數值 0–100／
+  gaps 必寫進 JSON（含缺天、updatedLabel 過期、asof 落後、卡片數異常、
+  圖表庫 qa_flags 五項）。
 
 第 4 步：寫草稿並發布（一條指令收尾，不要自己拆步驟）
   **以 work/skeleton.json 為底**寫草稿到 **work/issue.json**——

@@ -59,6 +59,9 @@ def fold_calls(ledger, issue):
         if cid not in calls:
             errs.append(f"calls.close 引用不存在的帳目 id：{cid}")
         elif calls[cid].get("status") != "open":
+            # 冪等重跑：同一期已用同一 result 結過案 → 無事可做，不是錯
+            if calls[cid].get("status") == res and calls[cid].get("closed") == issue["date"]:
+                continue
             errs.append(f"calls.close 的 {cid} 已是 {calls[cid].get('status')}，不能重複結案")
         elif res not in ("hit", "miss", "expired", "void"):
             errs.append(f"calls.close 的 {cid} result={res!r} 不合法（hit/miss/expired/void）")
@@ -70,6 +73,11 @@ def fold_calls(ledger, issue):
         if not cid or not str(cid).strip():
             errs.append("calls.open 有帳目缺 id")
         elif cid in calls:
+            # 冪等重跑：同一期、同日、同 claim 的重複登帳 → 無事可做，不是錯
+            ex = calls[cid]
+            if ex.get("issue") == issue["issue"] and ex.get("opened") == issue["date"] \
+                    and ex.get("claim") == op.get("claim"):
+                continue
             errs.append(f"calls.open 的 id 重複：{cid}（帳目 id 必須全域唯一，建議格式 c{issue['issue']:03d}-N）")
         elif not op.get("claim") or not op.get("judge"):
             errs.append(f"calls.open 的 {cid} 缺 claim 或 judge——沒有裁判方法的判斷不能登帳")

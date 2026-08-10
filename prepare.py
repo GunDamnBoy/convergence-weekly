@@ -341,6 +341,7 @@ def main():
     calls = jload(calls_path).get("calls", []) if os.path.exists(calls_path) else []
     open_calls = [c for c in calls if c.get("status") == "open"]
     closed = [c for c in calls if c.get("status") in ("hit", "miss", "expired")]
+    # void（人工作廢）刻意不計戰績、不列未結案——不是帳目遺失，見 MAINTENANCE 已知的坑
     n_hit = sum(1 for c in closed if c["status"] == "hit")
     n_miss = sum(1 for c in closed if c["status"] == "miss")
     thin = []
