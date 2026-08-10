@@ -168,11 +168,21 @@ code{background:var(--soft);padding:1px 5px;border-radius:3px;font-size:12.5px}
 <div class="wrap" id="app"><div class="load">載入中⋯</div></div>
 
 <script>
-const CB = () => '?v=' + Date.now();
-const esc = s => String(s == null ? '' : s);
+// sanitize：所有要進 innerHTML 的字串一律先過這裡。
+// 上游字串（監控庫 trigger name、Google News 標題、逐字佐證）一路機械抄進來，
+// 沒有任何人看過——先全部跳脫，再放行白名單標籤 <b>/<code>/<br>。
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const S = s => esc(s)
+  .replace(/&lt;(\/?)b&gt;/g,'<$1b>')
+  .replace(/&lt;(\/?)code&gt;/g,'<$1code>')
+  .replace(/&lt;br\s*\/?&gt;/g,'<br>');
 const el = (h) => { const t = document.createElement('template'); t.innerHTML = h.trim(); return t.content; };
 
-async function getJSON(p){ const r = await fetch(p + CB(), {cache:'no-store'});
+let VER = '';   // index.updated——單期檔永不改寫，可用它當快取版本
+async function getJSON(p, fresh){
+  const v = fresh ? Date.now() : (VER || Date.now());
+  const r = await fetch(p + '?v=' + encodeURIComponent(v), fresh ? {cache:'no-store'} : {});
   if(!r.ok) throw new Error(p + ' ' + r.status); return r.json(); }
 
 /* ---------- small-multiple sparkline: single series, 2px line, last point labelled ---------- */
@@ -263,8 +273,8 @@ function renderQuant(q){
     // zeroish 只負責把長條改成灰色，表示「這一維目前接近 0，不要當成訊號」。
     const w = Math.max(d.v, 1.2);
     return `<tr title="${d.name} ${d.v}，本期變動 ${fmtDelta(d.delta)}">
-      <td class="lab">${d.emph ? '<b>'+d.name+'</b>' : d.name}
-        <small>權重 ${d.w}｜${d.note}</small></td>
+      <td class="lab">${d.emph ? '<b>'+esc(d.name)+'</b>' : esc(d.name)}
+        <small>權重 ${esc(d.w)}｜${S(d.note)}</small></td>
       <td class="bar"><div class="track">
         <div class="fill${d.zeroish ? ' z' : ''}" style="width:${w}%"></div></div></td>
       <td class="val"><b>${d.v.toFixed(1)}</b><br>${fmtDelta(d.delta)}</td>
@@ -273,10 +283,10 @@ function renderQuant(q){
   return `<div class="panel">
     <div class="hero">
       <span class="n">${q.composite.toFixed(1)}</span>
-      <span class="z">${q.zone}</span>
-      <span class="dlt">${q.note || ''}</span>
+      <span class="z">${esc(q.zone)}</span>
+      <span class="dlt">${S(q.note)}</span>
     </div>
-    <div class="cap">綜合泡沫溫度．${v2 ? '三層加權' : '六維加權'}．泡沫階段 ${q.stage.current}（${q.stage.label}，點亮 ${q.stage.lit}，${q.stage.delta}）${
+    <div class="cap">綜合泡沫溫度．${v2 ? '三層加權' : '六維加權'}．泡沫階段 ${esc(q.stage?.current)}（${esc(q.stage?.label)}，點亮 ${esc(q.stage?.lit)}，${esc(q.stage?.delta)}）${
       typeof q.twHeat === 'number' ? `．台股熱度 <b>${q.twHeat.toFixed(1)}</b>` : ''}</div>
     ${q.quadrant ? `<div class="ctitle">象限定位</div>
       <div class="csub">熱度 ＝（L1＋L2）／2，市場與資金有多熱；支撐 ＝ 100 − L3，基本面還剩多少兌現空間。
@@ -284,22 +294,22 @@ function renderQuant(q){
       <div class="quad">
         <span><b>${q.quadrant.heat.toFixed(1)}</b> 熱度</span>
         <span><b>${q.quadrant.support.toFixed(1)}</b> 支撐</span>
-        <span class="rg">${q.quadrant.regime}</span>
+        <span class="rg">${esc(q.quadrant.regime)}</span>
       </div>` : ''}
     ${q.triggers && q.triggers.length ? `<div class="ctitle">觸發器：已定義門檻的客觀清單</div>
       <div class="csub">這幾條是監控庫預先定義好的門檻，跨過就是跨過，不需要再解釋。
         背離那一節的「裁判方法」優先引用這裡；上一期 <b>下週該盯什麼</b> 的驗收也看這裡。
         目前 <b>${q.triggers.filter(t => t.state).length} / ${q.triggers.length}</b> 已觸發。</div>
       <ul class="trig">${q.triggers.map(t => `<li class="${t.state ? 'on' : ''}">
-        <span class="dot"></span><span class="nm">${t.name}</span>
-        <span class="vl">${t.value ?? ''}</span>
-        <span class="as">${t.asof || ''}</span></li>`).join('')}</ul>` : ''}
+        <span class="dot"></span><span class="nm">${esc(t.name)}</span>
+        <span class="vl">${esc(t.value ?? '')}</span>
+        <span class="as">${esc(t.asof || '')}</span></li>`).join('')}</ul>` : ''}
     <div class="ctitle">${v2 ? '三個層次（依資料更新頻率分層）' : '六個維度'}</div>
     <div class="csub">數值為 0–100 熱度，越高越熱。長條長度即為數值；右欄為本期變動。${
       v2 ? '' : '<br><b>本期為 2026-08-04 改版前的舊架構（六維）</b>，與之後的三層不可直接比較。'}</div>
     <table class="bars">${rows}</table>
     ${q.callout ? `<div class="call" style="margin-top:22px">
-      <b class="h">${q.callout.h}</b>${q.callout.body}</div>` : ''}
+      <b class="h">${S(q.callout.h)}</b>${S(q.callout.body)}</div>` : ''}
   </div>`;
 }
 
@@ -307,19 +317,19 @@ function renderItem(it){
   let h = `<div class="item${it.hot ? ' hot' : ''}">`;
   if(it.tags && it.tags.length)
     h += `<div class="tagrow">` + it.tags.map(t =>
-      `<span class="tag${t.cls ? ' '+t.cls : ''}">${t.t}</span>`).join('') + `</div>`;
-  if(it.title) h += `<h3>${it.title}</h3>`;
-  if(it.body) h += it.body.map(p => `<p>${p}</p>`).join('');
+      `<span class="tag${t.cls ? ' '+esc(t.cls) : ''}">${S(t.t)}</span>`).join('') + `</div>`;
+  if(it.title) h += `<h3>${S(it.title)}</h3>`;
+  if(it.body) h += it.body.map(p => `<p>${S(p)}</p>`).join('');
   if(it.cols && it.cols.length)
     h += `<div class="cols n${it.cols.length}">` + it.cols.map(c =>
-      `<div><h4>${c.h}</h4>${c.body}</div>`).join('') + `</div>`;
+      `<div><h4>${S(c.h)}</h4>${S(c.body)}</div>`).join('') + `</div>`;
   if(it.list && it.list.length)
     h += `<ul class="sig">` + it.list.map(l =>
-      `<li>${l.body}<span class="src">${l.src}</span></li>`).join('') + `</ul>`;
+      `<li>${S(l.body)}<span class="src">${S(l.src)}</span></li>`).join('') + `</ul>`;
   if(it.evidence && it.evidence.length)
     h += `<div class="ev"><b class="h">佐證</b>` + it.evidence.map(e =>
-      `<div><span class="d">${e.d}</span><span class="sb">${e.s}</span>${e.t}</div>`).join('') + `</div>`;
-  if(it.call) h += `<div class="call"><b class="h">${it.call.h}</b>${it.call.body}</div>`;
+      `<div><span class="d">${esc(e.d)}</span><span class="sb">${esc(e.s)}</span>${S(e.t)}</div>`).join('') + `</div>`;
+  if(it.call) h += `<div class="call"><b class="h">${S(it.call.h)}</b>${S(it.call.body)}</div>`;
   return h + `</div>`;
 }
 
@@ -330,25 +340,25 @@ function renderErrata(index, date){
   if(!me || !me.errata || !me.errata.length) return '';
   return `<div class="warn" style="margin:18px 0 0">
     <b>本期勘誤（發布後發現，原文保留未改寫）</b>
-    <ul>${me.errata.map(e => `<li>${e}</li>`).join('')}</ul></div>`;
+    <ul>${me.errata.map(e => `<li>${S(e)}</li>`).join('')}</ul></div>`;
 }
 
 function renderIssue(d, index){
-  const src = d.coverage.map(c => `<span>${c.k} · ${c.v}</span>`).join('');
+  const src = d.coverage.map(c => `<span>${esc(c.k)} · ${esc(c.v)}</span>`).join('');
   const btns = index.issues.map(i =>
     `<button data-file="${i.file}" data-date="${i.date}"
        aria-current="${i.date === d.date}">第 ${String(i.issue).padStart(3,'0')} 期 · ${i.short}</button>`).join('');
 
   let h = `<header>
       <div class="kicker">主題匯流訊號報</div>
-      <h1>${d.headline}</h1>
-      <div class="meta">${d.label}　·　${d.stamp}<br>
-        量化涵蓋 <b>${d.range.quant}</b>　·　敘事涵蓋 <b>${d.range.narrative}</b></div>
+      <h1>${S(d.headline)}</h1>
+      <div class="meta">${esc(d.label)}　·　${esc(d.stamp)}<br>
+        量化涵蓋 <b>${esc(d.range.quant)}</b>　·　敘事涵蓋 <b>${esc(d.range.narrative)}</b></div>
       <div class="srcs">${src}</div>
     </header>
     <div class="switch"><span class="lbl">期別</span>${btns}</div>
     ${renderErrata(index, d.date)}
-    <div class="verdict"><h2>本期判斷</h2>${d.verdict.map(p => `<p>${p}</p>`).join('')}</div>
+    <div class="verdict"><h2>本期判斷</h2>${d.verdict.map(p => `<p>${S(p)}</p>`).join('')}</div>
 
     <h2 class="sec">零 · 量化底盤：這一節不是新聞，是這段期間的客觀狀態</h2>
     <p class="lede">新聞與 podcast 都是敘事，兩者可能一起錯；泡沫監控是每交易日自動抓 FRED、EDGAR、價格與 CAPE 算出來的，它不看新聞。把它放進來，等於多了一個不會被敘事帶著走的參照點。</p>
@@ -359,8 +369,8 @@ function renderIssue(d, index){
   // 編號寫在各節自己的 title 字串裡（「一 ·」開始）。
   // 尾巴兩節（下週該盯什麼／回饋）的編號**依 sections 長度動態計算**，
   // 這樣 4 節（第 001 期）與 5 節（v0.5 起，多了圖表側寫）都不會錯位。
-  h += d.sections.map(s => `<h2 class="sec">${s.title}</h2>` +
-    (s.lede ? `<p class="lede">${s.lede}</p>` : '<div style="height:14px"></div>') +
+  h += d.sections.map(s => `<h2 class="sec">${S(s.title)}</h2>` +
+    (s.lede ? `<p class="lede">${S(s.lede)}</p>` : '<div style="height:14px"></div>') +
     s.items.map(renderItem).join('')).join('');
 
   const CN = ['零','一','二','三','四','五','六','七','八','九','十'];
@@ -369,21 +379,21 @@ function renderIssue(d, index){
   const numFb    = CN[nSec + 2] || String(nSec + 2);
 
   h += `<h2 class="sec">${numWatch} · 下週該盯什麼（每一條都可觀察、可證偽）</h2><div style="height:14px"></div>
-    <div class="item"><ul class="sig">${d.watch.map(w => `<li>${w}</li>`).join('')}</ul></div>`;
+    <div class="item"><ul class="sig">${d.watch.map(w => `<li>${S(w)}</li>`).join('')}</ul></div>`;
 
   if(d.feedback && d.feedback.length)
     h += `<h2 class="sec">${numFb} · 這期發現的、該回饋給來源系統的事</h2><div style="height:14px"></div>
-      <div class="item"><ul class="sig">${d.feedback.map(w => `<li>${w}</li>`).join('')}</ul></div>`;
+      <div class="item"><ul class="sig">${d.feedback.map(w => `<li>${S(w)}</li>`).join('')}</ul></div>`;
 
   h += `<footer>
       <b>資料來源與方法</b><br>
       四個公開資料集自動比對產生：投顧知識庫（advisory-knowledge-hub）、節目知識庫（podcast-knowledge-digest）、AI 泡沫監控（ai-bubble-monitor）、每日五圖（chart-of-the-day）。敘事側佐證逐字取自實際卡片、集數標題或當日交叉觀察，未經改寫；量化側數值直接取自 <code>data.json</code> 與圖表的重製序列。<br>
       前三庫在產生階段互不引用。<b>每日五圖的選題取自投顧知識庫，因此它與投顧側不算兩個獨立來源</b>——它在本報中的角色是量化側的第二個裁判：只有它自行重製的數字（Yahoo／FRED）才被當成證據。<br><br>
-      <b>本期方法</b>：${d.about.method}<br><br>
-      <b>執行紀錄</b>：${d.about.run}
+      <b>本期方法</b>：${S(d.about.method)}<br><br>
+      <b>執行紀錄</b>：${S(d.about.run)}
       ${d.gaps && d.gaps.length ? `<div class="warn"><b>本期發現的資料缺口</b>
-        <ul>${d.gaps.map(g => `<li>${g}</li>`).join('')}</ul></div>` : ''}
-      <br>排程：每週日 21:30（台北）　·　歷史全部保留　·　本期發布 ${index.updatedLabel}
+        <ul>${d.gaps.map(g => `<li>${S(g)}</li>`).join('')}</ul></div>` : ''}
+      <br>排程：每週日 21:30（台北）　·　歷史全部保留　·　本期發布 ${esc(index.updatedLabel)}
     </footer>`;
   return h;
 }

@@ -1,0 +1,6 @@
+# 備料工作區——prepare.py 的 --work 若曾在 repo 目錄下執行，
+# 沒有這份檔案的話，四個上游 clone 加摘要層會被 dashpush 整包 commit 上去
+work/
+*.tmp
+__pycache__/
+*.pyc

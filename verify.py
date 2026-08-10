@@ -257,6 +257,8 @@ def main():
         skipped.append("量化側存在性／層維變動／觸發器對帳／watch 綁定／events 檢查")
     else:
         b = json.load(open(a.bub, encoding='utf-8'))
+        raw_bub = open(a.bub, encoding='utf-8').read()
+        need(b, 'indicators', '監控庫'); need(b, 'tw.items', '監控庫')
         # 合法的量化欄位名＝指標 id（動態讀，v2 為 22 項）＋ 台股項目 id
         # ＋ 頂層量化欄位。維度 id 兩代並存：v1 的 d1–d6 與 v2 的 l1–l3 都算數，
         # 因為舊期引用 d4、新期引用 l2 都是對的。
@@ -320,6 +322,44 @@ def main():
             print(f"[{'ok ' if len(fails) == n1 else 'FAIL'}] "
                   f"層／維現值與變動 vs history（基準 {first['date']}，同架構 {len(same)} 筆）")
 
+        # quant 純抄寫欄位 vs 監控庫逐欄對帳——報告最上面那個 52px 的 composite
+        # 之前從來沒有被對過帳，抄錯一位就是趨勢圖上一個永遠的錯點
+        n_rc = len(fails)
+        def _eq2(x, y): return isinstance(x,(int,float)) and isinstance(y,(int,float)) and abs(x-y) <= .05
+        if not _eq2(q.get('composite'), b.get('composite')):
+            fails.append(f"quant.composite={q.get('composite')} ≠ 監控庫 {b.get('composite')}")
+        if not _eq2(q.get('twHeat'), (b.get('tw') or {}).get('heat')):
+            fails.append(f"quant.twHeat={q.get('twHeat')} ≠ 監控庫 {(b.get('tw') or {}).get('heat')}")
+        _bs = (b.get('stage') or {}).get('current')
+        if not _eq2((q.get('stage') or {}).get('current'), _bs):
+            fails.append(f"quant.stage.current={(q.get('stage') or {}).get('current')} ≠ 監控庫 {_bs}")
+        _bq = b.get('quadrant') or {}
+        for k in ('heat', 'support'):
+            if qd0.get(k) is not None and not _eq2(qd0.get(k), _bq.get(k)):
+                fails.append(f"quant.quadrant.{k}={qd0.get(k)} ≠ 監控庫 {_bq.get(k)}")
+        if qd0.get('regime') and _bq.get('regime') and qd0['regime'] != _bq['regime']:
+            fails.append(f"quant.quadrant.regime 與監控庫不符：{qd0['regime']!r} vs {_bq['regime']!r}")
+        _zl = zone_label(b)
+        if _zl and q.get('zone') and q['zone'] != _zl:
+            fails.append(f"quant.zone={q['zone']!r} ≠ 由 zones 表推得的 {_zl!r}")
+        print(f"[{'ok ' if len(fails) == n_rc else 'FAIL'}] quant 抄寫欄位 vs 監控庫逐欄對帳")
+
+        # 量化佐證的數字 token：逐字回查驗的是敘述句，數字全在短片段裡沒被驗過。
+        # 監控 evidence 的每個數字都必須出現在監控庫原始檔裡（正規化 −/- 後比對）。
+        n_num = len(fails)
+        _norm = lambda s: str(s).replace('−', '-').replace('，', ',')
+        _raw_n = _norm(raw_bub)
+        bad_num = []
+        for _, e in ev:
+            if e.get('s') != '監控': continue
+            for tok in re.findall(r'\d+\.\d+|\d{2,}', _norm(clean(e['t']))):
+                if tok not in _raw_n:
+                    bad_num.append(f"{e['d']}｜數字 {tok} 不存在於監控庫原始檔：{clean(e['t'])[:36]}")
+        if bad_num:
+            fails.append(f"量化佐證有 {len(bad_num)} 個數字對不上監控庫")
+        print(f"[{'ok ' if len(fails) == n_num else 'FAIL'}] 量化佐證數字對帳")
+        for x in bad_num[:8]: print("        ✗", x)
+
         # 觸發器：id 必須存在於監控庫，state 與 index 的 trigLit 要對得上
         bt = b.get('triggers', [])
         if q.get('triggers') and bt:
@@ -357,6 +397,11 @@ def main():
             why = f"漏標 {miss}"
             if wrong: why += f"（該條標的 {wrong} 不是 trigger id）"
             bad_w.append(f"{why}：{plain[:42]}")
+        # 過度標記：<code> 了一個既不是 trigger、也不是任何合法量化欄位的 id
+        for w in d.get("watch", []):
+            for x in re.findall(r"<code>([a-z0-9_]+)</code>", str(w)):
+                if x not in tids and x not in ids:
+                    bad_w.append(f"標了不存在的 id <code>{x}</code>：{clean(w)[:40]}")
         if bad_w:
             fails.append(f"watch 有 {len(bad_w)} 條的 trigger 綁定壞掉——下期無法自動驗收 state")
         if bt:
