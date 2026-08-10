@@ -186,18 +186,39 @@ async function getJSON(p, fresh){
   if(!r.ok) throw new Error(p + ' ' + r.status); return r.json(); }
 
 /* ---------- small-multiple sparkline: single series, 2px line, last point labelled ---------- */
-function spark(vals){
-  if(!vals || vals.length < 2) return '';
+function spark(pairs){
+  // pairs: [{d:'YYYY-MM-DD', v:number|null}]。x 依日期等比配置——
+  // 系統允許「零新增資料→不產期」，跳週是預期行為，均勻排點會假裝時間連續。
+  // v 為 null（該期缺值）畫成斷線。超過 40 點降採樣（保頭尾）。
+  let pts0 = (pairs || []).filter(p => p && p.d);
+  if(pts0.length < 2) return '';
+  if(pts0.length > 40){
+    const step = Math.ceil(pts0.length / 40), keep = [];
+    for(let i = 0; i < pts0.length; i += step) keep.push(pts0[i]);
+    if(keep[keep.length-1] !== pts0[pts0.length-1]) keep.push(pts0[pts0.length-1]);
+    pts0 = keep;
+  }
+  const ts = pts0.map(p => Date.parse(p.d));
+  const t0 = Math.min(...ts), t1 = Math.max(...ts), tspan = (t1 - t0) || 1;
+  const nums = pts0.map(p => p.v).filter(v => typeof v === 'number');
+  if(nums.length < 2) return '';
   const W = 100, H = 34, P = 3;
-  const mn = Math.min(...vals), mx = Math.max(...vals);
+  const mn = Math.min(...nums), mx = Math.max(...nums);
   const span = (mx - mn) || 1;
-  const pts = vals.map((v,i) => {
-    const x = P + (W - 2*P) * (vals.length === 1 ? 0 : i/(vals.length-1));
-    const y = P + (H - 2*P) * (1 - (v - mn)/span);
+  const pts = pts0.map((p, i) => {
+    if(typeof p.v !== 'number') return null;
+    const x = P + (W - 2*P) * ((ts[i] - t0) / tspan);
+    const y = P + (H - 2*P) * (1 - (p.v - mn)/span);
     return [x, y];
   });
-  const dd = pts.map((p,i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
-  const last = pts[pts.length-1];
+  const vals = nums;   // 供下方最後值標籤沿用
+  let dd = '', pen = false;
+  for(const p of pts){
+    if(!p){ pen = false; continue; }             // 缺值→提筆，畫成斷線
+    dd += (pen ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1) + ' ';
+    pen = true;
+  }
+  const last = [...pts].reverse().find(p => p);
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
       aria-label="走勢，最新值 ${vals[vals.length-1]}">
     <path d="${dd}" fill="none" stroke="var(--red)" stroke-width="2"
@@ -208,7 +229,8 @@ function spark(vals){
 }
 
 function fmtDelta(d){
-  if(d === 0 || d == null) return '持平';
+  if(d == null) return '—（無基準）';   // 無同架構基準≠持平——上游改版時尤其不能假裝沒動
+  if(d === 0) return '持平';
   return (d > 0 ? '＋' : '−') + Math.abs(d).toFixed(1);
 }
 
@@ -241,15 +263,16 @@ function renderTrend(index){
     {n:'觸發器已亮', get:i => i.trigLit}
   ];
   const v2iss = iss.filter(i => i.quantVer === 'v2');
-  const card = (d, rows, tag) => {
-    const vals = rows.map(d.get).filter(v => typeof v === 'number');
-    if(vals.length < 2) return '';
-    const now = vals[vals.length-1], first = vals[0];
-    return `<figure title="${d.n}：${first.toFixed(1)} → ${now.toFixed(1)}">
-      <figcaption>${d.n}${tag ? ' <span class="v2">'+tag+'</span>' : ''}</figcaption>
+  const card = (def, rows, tag) => {
+    const pairs = rows.map(i => ({d: i.date, v: (v => typeof v === 'number' ? v : null)(def.get(i))}));
+    const nums = pairs.map(p => p.v).filter(v => v !== null);
+    if(nums.length < 2) return '';
+    const now = nums[nums.length-1], first = nums[0];
+    return `<figure title="${def.n}：${first.toFixed(1)} → ${now.toFixed(1)}">
+      <figcaption>${def.n}${tag ? ' <span class="v2">'+tag+'</span>' : ''}</figcaption>
       <div class="now">${now.toFixed(1)}</div>
       <div class="chg">${tag ? '自 v2 起' : '自第一期'} ${fmtDelta(+(now-first).toFixed(1))}</div>
-      ${spark(vals)}
+      ${spark(pairs)}
     </figure>`;
   };
   const cards = CONT.map(d => card(d, iss, '')).join('')
@@ -263,6 +286,26 @@ function renderTrend(index){
     <div class="sm">${cards}</div>`;
 }
 
+function trigLi(t){
+  return `<li class="${t.state ? 'on' : ''}">
+    <span class="dot"></span><span class="nm">${esc(t.name)}</span>
+    <span class="vl">${esc(t.value ?? '')}</span>
+    <span class="as">${esc(t.asof || '')}</span></li>`;
+}
+function renderTriggers(tg){
+  if(!tg || !tg.length) return '';
+  const lit = tg.filter(t => t.state), dark = tg.filter(t => !t.state);
+  const head = `<div class="ctitle">觸發器：已定義門檻的客觀清單</div>
+    <div class="csub">這幾條是監控庫預先定義好的門檻，跨過就是跨過，不需要再解釋。
+      背離那一節的「裁判方法」優先引用這裡；上一期 <b>下週該盯什麼</b> 的驗收也看這裡。
+      目前 <b>${lit.length} / ${tg.length}</b> 已觸發。</div>`;
+  if(tg.length <= 8)
+    return head + `<ul class="trig">${tg.map(trigLi).join('')}</ul>`;
+  // 條數多時只展開已亮的，其餘收折——20 條全列會把面板整個佔掉
+  return head + `<ul class="trig">${lit.map(trigLi).join('')}</ul>
+    <details><summary>未觸發的 ${dark.length} 條</summary>
+    <ul class="trig">${dark.map(trigLi).join('')}</ul></details>`;
+}
 function renderQuant(q){
   if(!q) return '';
   // schemaVer 標的是「這期讀到的監控庫是哪個架構」：v1＝六維 D1–D6，v2＝三層 L1–L3。
@@ -282,7 +325,7 @@ function renderQuant(q){
   }).join('');
   return `<div class="panel">
     <div class="hero">
-      <span class="n">${q.composite.toFixed(1)}</span>
+      <span class="n">${typeof q.composite === 'number' ? q.composite.toFixed(1) : '—'}</span>
       <span class="z">${esc(q.zone)}</span>
       <span class="dlt">${S(q.note)}</span>
     </div>
@@ -296,14 +339,7 @@ function renderQuant(q){
         <span><b>${q.quadrant.support.toFixed(1)}</b> 支撐</span>
         <span class="rg">${esc(q.quadrant.regime)}</span>
       </div>` : ''}
-    ${q.triggers && q.triggers.length ? `<div class="ctitle">觸發器：已定義門檻的客觀清單</div>
-      <div class="csub">這幾條是監控庫預先定義好的門檻，跨過就是跨過，不需要再解釋。
-        背離那一節的「裁判方法」優先引用這裡；上一期 <b>下週該盯什麼</b> 的驗收也看這裡。
-        目前 <b>${q.triggers.filter(t => t.state).length} / ${q.triggers.length}</b> 已觸發。</div>
-      <ul class="trig">${q.triggers.map(t => `<li class="${t.state ? 'on' : ''}">
-        <span class="dot"></span><span class="nm">${esc(t.name)}</span>
-        <span class="vl">${esc(t.value ?? '')}</span>
-        <span class="as">${esc(t.asof || '')}</span></li>`).join('')}</ul>` : ''}
+    ${renderTriggers(q.triggers)}
     <div class="ctitle">${v2 ? '三個層次（依資料更新頻率分層）' : '六個維度'}</div>
     <div class="csub">數值為 0–100 熱度，越高越熱。長條長度即為數值；右欄為本期變動。${
       v2 ? '' : '<br><b>本期為 2026-08-04 改版前的舊架構（六維）</b>，與之後的三層不可直接比較。'}</div>
@@ -398,33 +434,71 @@ function renderIssue(d, index){
   return h;
 }
 
-async function load(file, index){
+// 判斷紀錄（訊號帳本）——回答「這套系統的判斷值不值得信」
+function renderScore(ledger){
+  const calls = (ledger && ledger.calls) || [];
+  if(!calls.length) return '';
+  const by = s => calls.filter(c => c.status === s);
+  const hit = by('hit'), miss = by('miss'), open = by('open'), exp = by('expired');
+  const li = c => `<li><b>${esc(c.id)}</b>（第 ${String(c.issue).padStart(3,'0')} 期）
+    ${S(c.claim)}｜裁判：${S(c.judge)}${c.status !== 'open'
+      ? `｜<b>${{hit:'✔ 命中',miss:'✘ 落空',expired:'⌛ 過期',void:'－作廢'}[c.status] || esc(c.status)}</b>（第 ${String(c.closedIssue||'?').padStart(3,'0')} 期結案）` : ''}</li>`;
+  return `<div class="score">
+    <span class="lbl2">判斷紀錄</span>
+    <span class="hit"><b>${hit.length}</b> 命中</span>
+    <span><b>${miss.length}</b> 落空</span>
+    <span><b>${open.length}</b> 未決</span>
+    ${exp.length ? `<span><b>${exp.length}</b> 過期</span>` : ''}
+    <details><summary>逐筆帳目</summary><ul>
+      ${[...open, ...hit, ...miss, ...exp].map(li).join('')}
+    </ul></details>
+  </div>`;
+}
+
+async function load(file, index, ledger){
   const app = document.getElementById('app');
   app.innerHTML = '<div class="load">載入中⋯</div>';
   try{
     const d = await getJSON(file);
-    app.innerHTML = renderIssue(d, index);
+    let html = renderIssue(d, index);
+    // 記分板插在本期判斷之後
+    const scoreHtml = renderScore(ledger);
+    if(scoreHtml){
+      const cut = html.indexOf('<h2 class="sec">');
+      html = cut > 0 ? html.slice(0, cut) + scoreHtml + html.slice(cut) : html + scoreHtml;
+    }
+    app.innerHTML = html;
     app.querySelectorAll('.switch button').forEach(b =>
       b.addEventListener('click', () => {
         if(b.getAttribute('aria-current') === 'true') return;
-        history.replaceState(null, '', '#' + b.dataset.date);
-        load(b.dataset.file, index);
+        history.pushState(null, '', '#' + b.dataset.date);
+        load(b.dataset.file, index, ledger);
         window.scrollTo({top:0, behavior:'smooth'});
       }));
+    const sel = app.querySelector('#olderSel');
+    if(sel) sel.addEventListener('change', () => {
+      if(sel.value) load(sel.value, index, ledger);
+    });
   }catch(e){
-    app.innerHTML = '<div class="load">讀取失敗：' + e.message + '</div>';
+    app.innerHTML = '<div class="load">讀取失敗：' + esc(e.message) + '</div>';
   }
 }
 
 (async function(){
   try{
-    const index = await getJSON('data/index.json');
-    const want = location.hash.replace('#','');
-    const hit = index.issues.find(i => i.date === want) || index.issues[0];
-    await load(hit.file, index);
+    const index = await getJSON('data/index.json', true);   // index 永遠拿最新
+    VER = index.updated || '';                              // 單期檔以發布時間當快取版本
+    let ledger = null;
+    try{ ledger = await getJSON('data/calls.json'); }catch(_){}   // 帳本尚未建立時靜靜略過
+    const pick = () => {
+      const want = location.hash.replace('#','');
+      return index.issues.find(i => i.date === want) || index.issues[0];
+    };
+    window.addEventListener('hashchange', () => load(pick().file, index, ledger));
+    await load(pick().file, index, ledger);
   }catch(e){
     document.getElementById('app').innerHTML =
-      '<div class="load">無法讀取 data/index.json：' + e.message + '</div>';
+      '<div class="load">無法讀取 data/index.json：' + esc(e.message) + '</div>';
   }
 })();
 </script>
