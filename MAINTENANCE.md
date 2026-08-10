@@ -41,13 +41,10 @@ git push -u origin main
 3. 在 `CHANGELOG.md` 加變更紀錄——**逐檔改動、被否決的選項、驗證方式、回溯要點**
    四項都要寫（模板見該檔第 4 節任一版）。收工前跑 `python3 healthcheck.py --metrics`
    把度量與 HEAD 填進第 1、2 節。**「為什麼改」跟「改了什麼」一樣重要。**
-4. 動到單期 JSON schema 時，**這一組要一起改**：brief 第 3 節、
-   `index.html`（`renderItem`／`renderQuant`／`renderTrend`／`renderErrata` 與章節編號計算）、
-   `verify.py` 與 `healthcheck.py`（必備欄位清單與 `CANON`）、
-   `make_index.py`（硬依賴 `quant` 欄位組 index 條目）、
-   **`prepare.py`**（v0.9 起它的 `build_skeleton()` 硬依賴整份單期 schema，
-   `PREP.md` 的量化底盤與觸發器兩區也是——schema 一動它們會靜靜地產出錯的東西）。
-   ⚠️ `build_issue.py` **不在這一組裡**——它已凍結在第 001 期，刻意不追著改。
+4. 動到單期 JSON schema 時，**「一組要一起改」的清單以 `AGENT_BRIEF.md`
+   第 3.0 節末為唯一正本**，本檔不再複寫——這份清單在本檔的複本已經過期三次
+   （v0.4→v0.5.1→v1.0，每次都少列新檔），複本本身就是失效模式 3.1。
+   ⚠️ `build_issue.py` 不在組內——已凍結在第 001 期，刻意不追著改。
 5. 事故經過與被否決的選項寫本檔第 6 節
 
 ⚠️ **維護時讀不到實際生效的 prompt。**
@@ -194,7 +191,7 @@ git push -u origin main
 - **`sections` 的 id 與順序被鎖死。** v0.5 起為
   `resonance→divergence→taiwan→charts→single`（5 節）；第 001 期是 4 節（無 `charts`），
   `verify.py` 的 `LEGACY` 清單放行。外殼尾段編號已改為依長度動態計算，不再寫死。
-  要增減章節或動 schema，一組一起改（清單見 brief 第 3.0 節末，含 `make_index.py` 與 `prepare.py`）。
+  要增減章節或動 schema，一組一起改（清單見 brief 第 3.0 節末——唯一正本，本檔不複寫）。
 - **每日五圖不是獨立來源。** 它的 `about.upstream[0]` 就是投顧庫的當日檔——選題同源。
   「投顧在講＋圖表也在畫」是一票不是兩票，`verify.py` 會對 `resonance` 節實際計算獨立聲音數。
   這是 `events` 禁令的同型問題，第三次踩到同一個坑了（`events`、然後是圖表庫）：
@@ -206,6 +203,15 @@ git push -u origin main
 - **`verify.py` 第 5.6 項只認 id 字串。** 用純中文描述門檻而完全不寫 trigger id 的
   `watch` 條目它抓不到——那要靠 prompt 的自律。它能擋的是「寫了 id 卻沒用 `<code>` 標」
   與「標成 indicator id」，第 002 期那 4 條都屬於後兩類。
+- **`publish.py` 是唯一發布路徑（v1.0 起）。** 草稿一律寫 `work/issue.json`，
+  **不要直接寫 `data/`**——dashpush 180 秒內就推上線，檢查必須在寫入之前。
+  手跑 make_index 或手動複製檔案都是繞過閘門。
+- **publish 的落地不是跨檔原子。** 四份檔案（單期／index／calls／upstream）先全部
+  序列化到 `.tmp` 再連續 `os.replace`——序列化失敗不落地，但 replace 之間仍有
+  微秒級視窗。若真的出現「單期檔在、index 沒跟上」，是這裡斷的：補跑同一指令即可
+  （冪等重跑會走通）。
+- **`calls` 的 `void` 僅供人工維護。** 排程只用 hit/miss/expired；void 帳目
+  不計戰績也不列未結案清單（`prepare.py` 刻意排除），不是帳目遺失。
 - **`verify.py` 是發布前檢查，不是歷史稽核工具。** 拿舊期回頭驗今天的監控資料一定會 FAIL
   （指標 id 退役、架構改版），那不代表那一期當時是錯的。腳本的錯誤訊息已同時說明兩種情況。
 
@@ -237,6 +243,11 @@ git push -u origin main
 - [x] 監控庫 v2 的 `triggers` 已接入（v0.6）。待觀察：7 條目前全部 `state=0`，
       等第一條亮起來時檢視背離節「引用現成門檻 vs 自己定義」的比例
 - [ ] 每日五圖 2026-08-05 才上線，累積兩週後檢視「圖表側寫」這一節值不值得留
+- [ ] 觀察（v1.0）：第 003 期是帳本上線後第一期。看三件事——排程有沒有真的登帳
+      （骨架有 `calls` 空殼佔位）、claim 是否可證偽、`PREP.md` 的未結案清單
+      下期有沒有逼出 `calls.close`
+- [ ] 觀察（v1.0）：第一次 🛑 上游改版偵測觸發時，檢視 diff 文字能不能直接寫進
+      `gaps`（設計目標），還是需要人再翻譯一層
 
 ---
 

@@ -65,7 +65,7 @@ https://github.com/GunDamnBoy/chart-of-the-day           → data/YYYY-MM-DD.jso
 > 這與既有兩套系統不同（那兩套要讀本機逐字稿／要跑抓取），維護負擔低很多。
 > **但發布這一段仍然依賴本機**：用 `device_commit_files` 寫回 `~/convergence-weekly`，
 > 再由既有的 launchd agent `com.kenny.dashpush` 每 180 秒 push 上去。
-> 連不到本機時的退路見第 4 節第 7 步。
+> 連不到本機時的退路見第 4 節第 6 步。
 
 ### 1.1 四庫的資料結構
 
@@ -184,16 +184,16 @@ convergence-weekly/
 │   ├─ upstream.json     ← 監控庫指紋基準（上游改版偵測用，publish 成功後更新）
 │   └─ YYYY-MM-DD.json   ← 每期一檔，永不刪除、永不改寫
 ├─ build_issue.py        ← **已凍結在第 001 期（v1 六維、4 節），不要照抄它的結構。**
-│                          它示範的是「怎麼寫檔、怎麼更新 index.json」這層機制
-│                          （含保留 errata、防覆寫閘門），那部分與版本無關仍然有效。
-│                          現行 schema 一律以本節為準
-├─ prepare.py            ← **備料**（每週第 1–2 步）：clone 四庫、產出四份摘要層、
-│                          印 PREP.md（涵蓋統計＋**量化底盤全文**＋上期 watch＋
-│                          triggers 狀態＋零新增判定）。加 --emit-skeleton 另外寫出
-│                          work/skeleton.json：單期骨架，quant 整區已填好。
+│                          僅供第 001 期的 schema 考古。**寫檔機制一律看 publish.py**——
+│                          自己寫檔＝繞過發布閘門。現行 schema 一律以本節為準
+├─ prepare.py            ← **備料**（每週第 1 步）：clone 四庫、產出四份摘要層、
+│                          印 PREP.md（🛑上游改版偵測＋涵蓋統計＋上期 watch＋
+│                          **量化底盤全文**＋triggers 狀態＋**訊號帳本**＋零新增判定）。
+│                          加 --emit-skeleton 另外寫出 work/skeleton.json：
+│                          單期骨架，quant 整區已填好。
 │                          排程只跑它，不要自己寫摘要程式，也不要讀它的原始碼
-├─ make_index.py         ← **index 快照組裝**（第 5 步後半）：從單期 JSON 自動組
-│                          quantVer／quadrant／trigLit／updated，保留 errata
+├─ make_index.py         ← 手動維護工具（重建 index 條目用）。**不在每週流程內**——
+│                          v1.0 起 index 由 publish.py 的 build_entry 組
 ├─ publish.py            ← **發布閘門（v1.0 起唯一的發布路徑）**：草稿 → verify 全過
 │                          → 才原子寫入 data/（單期檔＋index＋calls 帳本＋upstream 指紋）。
 │                          內建「歷史永不改寫」守衛——dashpush 每 180 秒無條件推送，
@@ -377,8 +377,12 @@ convergence-weekly/
 }
 ```
 
-`publish.py` 會把它機械折入 `data/calls.json`（id 唯一性、引用存在性、result 合法性
-都在折入時驗證，錯了整期不發布）。站台的「判斷紀錄」區塊直接讀帳本顯示戰績。
+`publish.py` 會把它機械折入 `data/calls.json`，折入時驗證五件事，錯了整期不發布：
+open 的 id 唯一、open 必附 claim＋judge、close 引用的帳目存在、
+close 的對象仍是 open（不能重複結案）、result 在合法值域。
+`result` 的 `void`（作廢）**僅供人工維護**（例如上游移除了裁判用的 trigger）——
+排程合成時只用 `hit`／`miss`／`expired`；void 帳目不計戰績也不列未結案。
+站台的「判斷紀錄」區塊直接讀帳本顯示戰績。
 **登帳準則**：只登可證偽的（有裁判方法＋可觀察）；背離節的甲/乙裁決、有門檻的 watch
 是天然的帳目；「值得觀察」這種不可證偽的敘述不准登帳。
 `PREP.md` 每期會把未結案帳目攤開逼驗收——能裁決的必須在 `calls.close` 結案。
@@ -399,13 +403,17 @@ python3 site/prepare.py --work work --site site --emit-skeleton
 ```
 
 它做完取資料與壓縮兩步：clone 四庫、依下列規格產出 `work/adv.txt`／`pod.txt`／
-`bub.txt`／`cotd.txt`，並印出 `PREP.md`——涵蓋統計與摘要層大小、各庫最新日期（監控庫以 `meta.built` 為準）、
+`bub.txt`／`cotd.txt`，並印出 `PREP.md`，段落依序——
+**🛑 上游改版偵測**（監控庫指紋 vs 上期發布基準的明文 diff，變更時才出現；
+**列出的差異必須全部寫進本期 `gaps`**，涉及維度或權重時跨期比較依 §0 斷點規則處理）、
+涵蓋統計與摘要層大小、各庫最新日期（監控庫以 `meta.built` 為準）、
 **上一期資訊（期號／headline／errata 數）與 watch 清單全文**（合成時驗收用）、
-**triggers 狀態表**、樣本偏薄旗標、零新增資料提示。
+**量化底盤全文**、**triggers 狀態表**、**訊號帳本**（戰績＋未結案帳目逼驗收——
+能裁決的必須在本期 `calls.close` 結案）、樣本偏薄旗標、零新增資料提示。
 **exit 3 ＝ 四庫都沒有比上一期新的資料**，依 §2.1 不產期，直接進交付說明原因。
 
 主線接著只需要讀 `PREP.md` 與摘要層，**不要碰任何原始 JSON**，
-也**不要讀 `verify.py`／`make_index.py`／`prepare.py` 的原始碼**——
+也**不要讀 `verify.py`／`publish.py`／`cwlib.py`／`make_index.py`／`prepare.py` 的原始碼**——
 它們的用法本節與排程 prompt 已經寫完，讀原始碼零收益。
 `PREP.md` 已內嵌**量化底盤全文**（composite／象限／階段／台股熱度／三層變動／觸發器表），
 `bub.txt` 只在要查某個特定指標的 `score`／`zone`／`asof` 時才需要讀。
@@ -462,7 +470,7 @@ python3 site/prepare.py --work work --site site --emit-skeleton
 有結果的要寫進本期 `verdict`。這條回圈是本系統會不會累積判斷力的分水嶺——
 少了它，每期都是重新開始，`watch` 就只是好看的收尾。
 
-### 第 5 步：寫檔
+### 第 5 步：寫草稿並發布（一條指令）
 
 1. **以 `work/skeleton.json` 為底**寫草稿到 **`work/issue.json`**（不要直接寫 `data/`——
    dashpush 每 180 秒無條件推送，寫進 `data/` 就等於發布，檢查必須在那之前）。
@@ -470,49 +478,41 @@ python3 site/prepare.py --work work --site site --emit-skeleton
    那些是機械抄寫，手打既慢又會抄錯（第 002 期就是這樣把 `watch` 的
    trigger id 標成 indicator id）。
    你要填的是全部標「（填：…）」的欄位（含 `quant` 裡的 `dims[].note`／`stage.delta`／
-   `callout`／`quant.note` 四處）與 `sections[].items`。
+   `callout`／`quant.note` 四處）、`sections[].items`、`watch`、`gaps`，
+   以及 **`calls`**（骨架有空殼佔位；登帳準則見 §3.1——只登可證偽的，能結案的要結案）。
 2. 跑 `python3 site/publish.py work/issue.json --work work --site site`——
    它做完全部收尾：不可改寫守衛 → 組 index 快照 → 折入 calls 帳本 → **跑 verify**
    → 全過才原子寫入 `data/`（單期檔＋index＋calls＋upstream 指紋）。
-   任何一步失敗，`data/` 一個位元組都不會動；修完草稿重跑同一指令即可。
+   **exit 0 才算發布**（1＝verify 或折帳擋下，什麼都沒寫；2＝不可改寫守衛拒絕；
+   3＝草稿壞掉）。verify 之前任何失敗，`data/` 一個位元組都不會動；
+   修完草稿重跑同一指令即可。
    **不要手工編輯 `index.json`，也不要自己跑 make_index／verify 再手動複製檔案。**
 3. 不要動 `index.html`，除非 schema 真的變了（變了就是一組一起改，清單見第 3.0 節末）
 
-### 第 6 步：驗證（不可略過，跑在推送之前）
+### 驗證在 publish 內部發生（不要另外手跑 verify）
 
-**用 repo 內現成的 `verify.py`，不要自己重寫一支。**
+v1.0 起 `verify.py` 由 `publish.py` 在**暫存區**呼叫，跑在寫入 `data/` 之前——
+你不需要（也不應該）對 `data/` 裡的檔案手跑 verify，那是舊流程，
+它的前提「檔案先落地再檢查」正是發布閘門要消滅的。
+維護時單獨跑 verify 除錯可以，對象也是 `work/` 裡的草稿。
 
-```bash
-python3 verify.py data/YYYY-MM-DD.json \
-  --adv /path/adv.txt --pod /path/pod.txt --cotd /path/cotd.txt \
-  --bub /path/bub/data.json
-# --index 可省略，預設取 issue 同目錄的 index.json
-```
+> ⚠️ `--bub` 吃的是**原始 `bub/data.json`**，不是 `bub.txt`；`--cotd` 吃**壓縮過的
+> `cotd.txt`**。三份敘事語料**全有或全無**，缺任一整批跳過並回 `exit 2` 黃燈——
+> 黃燈不是通過，publish 一律當失敗。
 
-> ⚠️ `--bub` 吃的是**原始 `bub/data.json`**，不是備料壓縮出來的 `bub.txt`；
-> `--cotd` 則相反，吃的是**壓縮過的 `cotd.txt`**（它走敘事側 substring 回查）。
-> 敘事側才是 substring 回查；量化側做的是欄位名存在性與數值核對。
->
-> ⚠️ **四個路徑參數一個都不能省。** 缺任何一個，該批檢查會被整批跳過。
-> 三份敘事摘要層（`--adv`／`--pod`／`--cotd`）是**全有或全無**：
-> 只給其中一兩份會讓缺的那庫的佐證全部「查不到」而變成假 FAIL，所以缺一個就整批跳過。
-> **跳過不算 FAIL，但也不給綠燈**——`verify.py` 會印黃燈並回傳 `exit 2`。
-> 「沒有 FAIL」不等於「檢查有跑」；看到黃燈就是還不能發布。
+它檢查六大類（詳目見 `verify.py` docstring，兩份同步維護）：
+**A 結構**（必備欄位、章節 id 與順序、**每節至少一個 item**、值域 0–100）
+**B index 快照值層級對帳**（composite／dims／twHeat／stage／quadrant／trigLit 逐欄等值）
+**C 敘事佐證**（**逐來源**逐字回查、**全片段**、含 `list[]`、日期格式 `M/D`、
+**同段佐證不得跨 item 重複**、共振來源獨立性——投顧＋圖表計一票）
+**D 量化佐證**（`<code>欄位名</code>` 存在、**數字逐個對回監控庫**、不得取自 `events`）
+**E 量化對帳**（現值與變動 vs `history` 不跨改版、quant 抄寫欄位 vs 監控庫逐欄 diff、觸發器對帳）
+**F watch 的 trigger 綁定**（提到 id 必須 `<code>` 正確標）
 
-它檢查十件事，編號與腳本 docstring 一致：
-①必備欄位與章節結構（`sections` 的 id 與順序）②`index.json` 量化快照（v2 另驗 `quantVer`／
-`quadrant`／`trigLit`）③敘事側逐字回查（含 `list[]`）③′`evidence[].s` 合法值
-③″**共振的來源獨立性（投顧與圖表計為同一票）**④量化側欄位名存在性
-⑤層／維現值與變動 vs `history`（**不跨改版相減**）⑤′觸發器對帳
-⑤″**`watch` 的 trigger 綁定**⑥量化佐證未取自 `events`。
+> ⚠️ **不要自己先逐條回查一遍再等 publish 跑它。** 做兩遍等於白花一次，
+> 而且手動那次還會漏掉 `list[]`。直接跑 publish，看報告修。
 
-> ⚠️ **不要自己先逐條回查一遍再跑它。** 那正是它第 3 項在做的事，做兩遍等於白花一次，
-> 而且手動那次還會漏掉 `list[]`（單邊訊號整節都在那裡）。直接跑，看報告修。
-
-**任何一項 FAIL 就不要發布。** 回去修正該條引用或刪除它，重跑到全部通過。
-若動過 `index.html`，另外抽出 `<script>` 區塊跑 `node --check`。
-
-### 第 7 步：發布與交付
+### 第 6 步：發布與交付
 
 1. 用 `device_commit_files` 寫回本機 `~/convergence-weekly`，
    交給 `com.kenny.dashpush`（每 180 秒）自動推送
@@ -524,7 +524,8 @@ python3 verify.py data/YYYY-MM-DD.json \
    並明確告知使用者需要手動放進 repo——不要靜靜地跳過發布
 3. 驗證線上狀態時**網址一定要帶 cache-buster**，
    並確認頁面上的**期別按鈕數量**與**跨期趨勢的點數**，而不只是看 `issues[0].date`
-4. 交付訊息寫三行：本期最重要的判斷、**上一期 `watch` 清單的驗收結果**、發現的資料缺口
+4. 交付訊息寫四行：本期最重要的判斷、**上一期 `watch` 清單的驗收結果**、
+   **帳本戰績**（publish 輸出的 N 勝 M 敗 K 未決）、發現的資料缺口
 
 ---
 
@@ -546,6 +547,10 @@ python3 verify.py data/YYYY-MM-DD.json \
   > 那為什麼備料（第 1–2 步）還要把 `events` 放進 `bub.txt`？
   > 因為它有用：可以拿來**核對投顧側是不是漏了某條新聞**（哨兵用途）。
   > 它是背景資訊，不是證據。
+- **格式硬規則（verify 會 FAIL 的四條，寫錯就得整期重跑）：**
+  `evidence[].d` 一律 `M/D`（如 `8/5`，不帶年）；同一段佐證**不得跨 item 重複使用**
+  （兩個判斷共用一段引文，至少其中一個站不住）；每節至少一個 item
+  （真沒有就寫「本週無」的說明 item，不留空陣列）；量化數值一律 0–100 值域。
 - **背離那一節必須給出裁判方法。** 只說「兩邊不一致」沒有價值；
   要寫「用什麼數字、跨過什麼門檻，就知道哪一邊對」。
 - **「本期判斷」必須表態。** 不要寫「值得持續觀察」這種話——那是把判斷推給讀者。
@@ -583,7 +588,8 @@ python3 verify.py data/YYYY-MM-DD.json \
    「已定義門檻」與「自己定義的門檻」在背離節裡的比例是否合理。
 6. **每日五圖 2026-08-05 才上線**，前幾期樣本必然偏薄；
    累積兩週後檢視「圖表側寫」這一節是否真的產出數字落地，而不是變成圖說重述。
-7. **上游改版沒有主動偵測機制。** 監控庫 2026-08-04 由六維改三層，本系統完全不知情，
-   直到對舊期重跑 `verify.py` 崩潰才發現——若沒發現，該週必然失敗。
-   目前只有事後的錯誤訊息，沒有事前的偵測。可行方向：`prepare.py` 比對
-   `bub/data.json` 的 `meta.version` 與上一期記錄的值，不同就在 `PREP.md` 高亮警告。
+7. ~~上游改版沒有主動偵測機制。~~ **v1.0 已解決**：`cwlib.upstream_fingerprint`
+   取七項指紋（dims 鍵／權重／triggers 全文／indicators／tw／checklist／zones），
+   publish 成功後存 `data/upstream.json`，下次 `prepare.py` 比對並在 `PREP.md`
+   頂部印 🛑 明文 diff。留此紀錄：當年只比 `meta.version` 的構想不夠——
+   權重改了 version 常常不動，指紋要取「意義會變」的東西。
