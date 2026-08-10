@@ -35,9 +35,18 @@
 任何一項 FAIL 就不要發布。本檔是發布前檢查，跑在寫檔之後、推送之前。
 """
 import json, re, html, sys, os, argparse
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cwlib import baseline, dim_ids, schema_ver, is_lit, zone_label, need
 
 def clean(s):
     return re.sub(r'<[^>]+>', '', html.unescape(str(s))).strip()
+
+def all_clauses(text, min_len=8):
+    """切出所有 ≥min_len 字的片段——只驗最長一段等於放生所有短片段裡的數字。"""
+    s = clean(text).split('｜')[-1]
+    s = re.sub(r'^\([^)]*\)\s*', '', s)
+    parts = re.split(r'[（）()【】「」，、,：:；;。]', s)
+    return [p.strip() for p in parts if len(p.strip()) >= min_len]
 
 def core_clause(text):
     """把來源標籤剝掉，取出真正該逐字回查的那一段。
@@ -62,6 +71,10 @@ def main():
 
     fails, warns, skipped = [], [], []
     d = json.load(open(a.issue, encoding='utf-8'))
+    # 缺結構性欄位就直接停——繼續跑只會裸 KeyError，看起來像檢查工具自己壞了
+    for k in ('sections', 'quant', 'watch'):
+        if not isinstance(d.get(k), (list, dict)):
+            sys.exit(f"❌ 單期 JSON 缺 `{k}` 或型別錯誤，後續檢查無法進行。先補結構再跑。")
     idx_path = a.index or os.path.join(os.path.dirname(a.issue), 'index.json')
     idx = json.load(open(idx_path, encoding='utf-8'))
     print(f"[ok ] JSON 解析：{a.issue} · {idx_path}")
@@ -102,8 +115,24 @@ def main():
     if sec_ids not in (CANON, LEGACY):
         fails.append(f"sections 的 id 與順序不合規：{sec_ids}\n"
                      f"          應為 {CANON}（v0.5 起）或 {LEGACY}（v0.4 以前的舊期）")
+    # 值域：這些是 0–100 有意義的量，composite 999 不該全綠通過
+    for name, val in (('composite', q.get('composite')), ('twHeat', q.get('twHeat'))):
+        if isinstance(val, (int, float)) and not (0 <= val <= 100):
+            fails.append(f"quant.{name}={val} 超出 0–100")
+    for x in q.get('dims', []):
+        if isinstance(x.get('v'), (int, float)) and not (0 <= x['v'] <= 100):
+            fails.append(f"dims.{x.get('id')} v={x['v']} 超出 0–100")
+    qd0 = q.get('quadrant') or {}
+    for k in ('heat', 'support'):
+        if isinstance(qd0.get(k), (int, float)) and not (0 <= qd0[k] <= 100):
+            fails.append(f"quadrant.{k}={qd0[k]} 超出 0–100")
+    # 每節至少一個 item——規格說沒有背離就寫「本週四庫高度一致」，空節不合規
+    for s in d.get('sections', []):
+        if not s.get('items'):
+            fails.append(f"第「{s.get('title','')[:12]}」節 items 為空——"
+                         f"真的沒訊號就寫一條說明 item，不要留空節")
     n_field = len(fails)
-    print(f"[{'ok ' if not n_field else 'FAIL'}] 必備欄位與章節結構（{len(sec_ids)} 節）")
+    print(f"[{'ok ' if not n_field else 'FAIL'}] 必備欄位、章節結構與值域（{len(sec_ids)} 節）")
 
     # --- 2. index 快照 ---
     n0 = len(fails)
@@ -111,24 +140,43 @@ def main():
     if not me:
         fails.append("index.json 沒有本期")
     else:
-        need = ['composite','dims','twHeat','stage','file','issue','label','short','headline']
-        if v2: need += ['quantVer','quadrant','trigLit']
-        for k in need:
+        need_keys = ['composite','dims','twHeat','stage','file','issue','label','short','headline']
+        if v2: need_keys += ['quantVer','quadrant','trigLit']
+        for k in need_keys:
             if k not in me: fails.append(f"index 本期缺 {k}（跨期趨勢圖會斷）")
         if set(me.get('dims', {})) != set(want_ids):
             fails.append(f"index 本期 dims 應為 {want_ids}（跨期趨勢圖會斷）")
         if v2 and me.get('quantVer') != 'v2':
             fails.append("index 本期的 quantVer 應為 'v2'——外殼靠它決定哪幾期能連成一條線")
+        # 值層級對帳：欄位存在不夠，值也要相等——趨勢圖唯一資料來源，
+        # 錯的點會因「歷史永不改寫」永遠留在線上
+        def _eq(x, y): return isinstance(x,(int,float)) and isinstance(y,(int,float)) and abs(x-y) <= .05
+        for k, qv in (('composite', q.get('composite')), ('twHeat', q.get('twHeat')),
+                      ('stage', (q.get('stage') or {}).get('current'))):
+            if me.get(k) is not None and qv is not None and not _eq(me[k], qv):
+                fails.append(f"index 本期 {k}={me[k]} ≠ 單期檔 {qv}（趨勢圖會畫錯的點）")
+        for x in q.get('dims', []):
+            iv = (me.get('dims') or {}).get(x.get('id'))
+            if iv is not None and x.get('v') is not None and not _eq(iv, x['v']):
+                fails.append(f"index 本期 dims.{x['id']}={iv} ≠ 單期檔 {x['v']}")
+        if v2:
+            for k in ('heat', 'support'):
+                iv = (me.get('quadrant') or {}).get(k)
+                if iv is not None and qd0.get(k) is not None and not _eq(iv, qd0[k]):
+                    fails.append(f"index 本期 quadrant.{k}={iv} ≠ 單期檔 {qd0[k]}")
     print(f"[{'ok ' if len(fails) == n0 else 'FAIL'}] index.json 量化快照")
 
     # --- 3. 敘事側逐字回查 ---
     # 三份敘事摘要層要分別檢查有沒有給。只給其中一兩份時，缺的那庫的佐證
     # 會全部「查不到」而變成假 FAIL——那是參數沒給，不是引用錯了。
-    corpus = ''
-    missing_src = []
-    for label, p in (('--adv', a.adv), ('--pod', a.pod), ('--cotd', a.cotd)):
-        if p and os.path.exists(p): corpus += open(p, encoding='utf-8').read()
+    # corpus 依來源分開——併成一坨會讓「節目的句子標成投顧」照樣通過，
+    # 而第 3.5 項的獨立計票完全信任 s 標籤。標錯來源必須在這裡被抓到。
+    corpora, missing_src = {}, []
+    for label, src_key, p in (('--adv', '投顧', a.adv), ('--pod', '節目', a.pod),
+                              ('--cotd', '圖表', a.cotd)):
+        if p and os.path.exists(p): corpora[src_key] = open(p, encoding='utf-8').read()
         else: missing_src.append(label)
+    corpus = ''.join(corpora.values())
     ev = [(it, e) for s in d['sections'] for it in s['items'] for e in it.get('evidence', [])]
     narr = [e for _, e in ev if e.get('s') != '監控']
     # 單邊訊號整節用 list[] 而非 evidence[]，但「佐證一律逐字」是無條件的規則，
@@ -142,18 +190,35 @@ def main():
     else:
         bad = []
         for e in narr:
-            frag = core_clause(e['t'])
-            if len(frag) >= 8 and frag not in corpus:
-                bad.append(f"evidence {e['d']} {e.get('s')}｜{frag[:48]}")
+            src_corpus = corpora.get(e.get('s'))     # 只查該來源自己的語料
+            for frag in all_clauses(e['t']):
+                if src_corpus is not None and frag not in src_corpus:
+                    where = "（在別的來源找得到——s 標籤標錯了）" if frag in corpus else ""
+                    bad.append(f"evidence {e['d']} {e.get('s')}｜{frag[:40]}{where}")
         for l in lst_narr:
-            frag = core_clause(l.get('body', ''))
-            if len(frag) >= 8 and frag not in corpus:
-                bad.append(f"list {l.get('src','')[:16]}｜{frag[:48]}")
+            for frag in all_clauses(l.get('body', '')):
+                if frag not in corpus:               # list 的 src 是自由格式，查合併語料
+                    bad.append(f"list {l.get('src','')[:16]}｜{frag[:40]}")
         n = len(narr) + len(lst_narr)
-        if bad: fails.append(f"敘事側 {len(bad)} 條佐證無法逐字回查")
-        print(f"[{'ok ' if not bad else 'FAIL'}] 敘事側佐證回查："
-              f"{n} 條（evidence {len(narr)}＋list {len(lst_narr)}），失敗 {len(bad)}")
-        for b in bad: print("        ✗", b)
+        if bad: fails.append(f"敘事側 {len(bad)} 段佐證無法逐字回查（或來源標錯）")
+        print(f"[{'ok ' if not bad else 'FAIL'}] 敘事側佐證回查（逐來源、全片段）："
+              f"{n} 條，失敗 {len(bad)}")
+        for b in bad[:12]: print("        ✗", b)
+        # 日期格式：M/D 或 MM/DD，月日要合理——賣點是「同一週各自說」，日期歸屬錯了立論就沒了
+        n_d = len(fails)
+        for _, e in ev:
+            m = re.match(r'^(\d{1,2})/(\d{1,2})$', str(e.get('d', '')))
+            if not m or not (1 <= int(m.group(1)) <= 12 and 1 <= int(m.group(2)) <= 31):
+                fails.append(f"evidence 日期格式不合規：{e.get('d')!r}（應為 M/D）")
+        # 重複佐證：同一段引文出現在多個 item ＝ 同一票被數兩次（events 禁令的同型問題）
+        seen = {}
+        for it, e in ev:
+            key = core_clause(e['t'])
+            if len(key) >= 12:
+                if key in seen and seen[key] is not it:
+                    fails.append(f"同一段佐證被兩個 item 重複使用：{key[:36]}")
+                seen[key] = it
+        print(f"[{'ok ' if len(fails) == n_d else 'FAIL'}] 佐證日期格式與重複性")
 
     # --- 3.5 來源獨立性：圖表庫與投顧庫不是兩票 ---
     # 每日五圖的選題取自 advisory-knowledge-hub（見它自己的 about.upstream），

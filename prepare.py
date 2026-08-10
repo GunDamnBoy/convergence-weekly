@@ -25,6 +25,9 @@
 exit code：0 正常；3 = 四庫全部沒有比上一期更新的資料（依規格 §2.1 不應產期）
 """
 import json, os, sys, re, ast, subprocess, argparse, datetime as dt, zoneinfo
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cwlib import (baseline, dim_ids, schema_ver, is_lit, zone_label,
+                   upstream_fingerprint, diff_fingerprint, need)
 
 REPOS = {
     "adv":  "https://github.com/GunDamnBoy/advisory-knowledge-hub",
@@ -33,15 +36,18 @@ REPOS = {
     "cotd": "https://github.com/GunDamnBoy/chart-of-the-day",
 }
 
-def sh(cmd):
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+def sh(args, what=""):
+    try:
+        r = subprocess.run(args, capture_output=True, text=True, timeout=180)
+    except subprocess.TimeoutExpired:
+        sys.exit(f"❌ {what or args[0]} 超過 180 秒無回應——上游（GitHub）可能掛了或網路異常。")
     if r.returncode:
-        sys.exit(f"指令失敗：{cmd}\n{r.stderr[:500]}")
+        sys.exit(f"指令失敗：{' '.join(args)}\n{r.stderr[:500]}")
 
 def jload(p):
     return json.load(open(p, encoding="utf-8"))
 
-def lit(v):
+def pylit(v):
     """pod 的 takeaways/sections/meta 是字串化的 Python list。"""
     if isinstance(v, (list, dict)): return v
     try: return ast.literal_eval(v)
@@ -98,7 +104,7 @@ def build_pod(files):
                 parts.append(f"▸{e.get('show','')}｜{e.get('title','')}")
                 parts.append(str(e.get("summary",""))[:slim])
                 tks = [t.get("title", t) if isinstance(t, dict) else str(t)
-                       for t in lit(e.get("takeaways", []))]
+                       for t in pylit(e.get("takeaways", []))]
                 if tks: parts.append("takeaways: " + "｜".join(map(str, tks)))
         return "\n".join(parts), nep
     for slim in (420, 300, 220):
@@ -118,8 +124,8 @@ def build_bub(b):
              f"{'（'+first['date']+'）' if first else '——history 無同架構筆，無變動可算'}）")
     for k in sorted(b.get("dims", {})):
         cur = b["dims"][k]; m = (b.get("dimMeta") or {}).get(k, {})
-        dl = f"　變動 {round(cur - first['dims'][k],1):+}" if first else ""
-        p.append(f"  {k} {m.get('name','')} w={m.get('w','')}: {cur}{dl}　{m.get('note','')[:60]}")
+        dl = f"　變動 {round(cur - first['dims'][k],1):+}" if first else "　變動 —（無同架構基準）"
+        p.append(f"  {k} {m.get('name','')} w={m.get('w','')}: {cur}{dl}　{str(m.get('note') or '')[:60]}")
     qd = b.get("quadrant") or {}
     if qd: p.append(f"\n[象限] heat={qd.get('heat')} support={qd.get('support')} regime={qd.get('regime')}")
     tg = b.get("triggers") or []
@@ -184,9 +190,7 @@ def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
     """
     h = bub.get("history", [])
     cur = bub.get("dims", {})
-    same = sorted([r for r in h if set(r.get("dims", {})) == set(cur)],
-                  key=lambda r: r.get("date", ""))
-    first = same[0] if same else None
+    first, same = baseline(bub)
     dm = bub.get("dimMeta", {})
     dims = []
     for k in sorted(cur):
@@ -195,29 +199,23 @@ def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
             "id": k, "name": m.get("name", ""),
             "w": f"{int(round(float(m.get('w', 0))*100))}%",
             "v": cur[k],
-            "delta": round(cur[k] - first["dims"][k], 1) if first else 0.0,
+            "delta": round(cur[k] - first["dims"][k], 1) if first else None,   # None＝無基準，前端印「—」；不要填 0.0 假裝持平
             "note": "（填：這一層本期為什麼動／沒動）",
         })
     qd = bub.get("quadrant") or {}
     st = bub.get("stage") or {}
     lit = [c for c in st.get("checklist", []) if c.get("state")]
-    # zones 是依 max 升冪的門檻表（無 lo/hi），取第一個 max ≥ composite 的
-    _c = bub.get("composite", 0)
-    _zs = [z for z in bub.get("zones", []) if isinstance(z, dict) and "max" in z]
-    _zs.sort(key=lambda z: z["max"])
-    zone = next((z for z in _zs if _c <= z["max"]), (_zs[-1] if _zs else None))
-    _prev_max = None
-    for _z in _zs:
-        if _z is zone: break
-        _prev_max = _z["max"]
-    zone_label = (f"{zone['label']}（{(_prev_max or 0)}–{zone['max']}）" if zone
-                  else "（填：對照 bub.txt 的 zones）")
+    zl = zone_label(bub) or "（填：對照 bub.txt 的 zones）"
     issue_no = prev["issue"] + 1
     _nd = sorted({x[0] for x in (adv_f + pod_f + cotd_f)})
-    rng_n = f"{_nd[0][5:].replace('-','/')} – {_nd[-1][5:].replace('-','/')}" if _nd else "—"
+    def _dlabel(a, b):
+        # 跨年時保留年份，否則「12/28 – 01/03」讀起來像倒著寫
+        if a[:4] != b[:4]:
+            return f"{a.replace('-','/')} – {b.replace('-','/')}"
+        return f"{a[5:].replace('-','/')} – {b[5:].replace('-','/')}"
+    rng_n = _dlabel(_nd[0], _nd[-1]) if _nd else "—"
     _built = str((bub.get("meta") or {}).get("built") or "")[:10]
-    rng_q = (f"{same[0]['date'][5:].replace('-','/')} – {_built[5:].replace('-','/')}"
-             if same and _built else "—")
+    rng_q = _dlabel(same[0]["date"], _built) if same and re.match(r"20\d\d-\d\d-\d\d$", _built) else "—"
     return {
         "date": str(today), "issue": issue_no,
         "label": f"第 {issue_no:03d} 期 · {today.year} 年 {today.month} 月 {today.day} 日",
@@ -233,9 +231,9 @@ def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
         "verdict": ["（填：段 1，必須表態）", "（填：段 2，上一期 watch 逐條驗收）",
                     "（填：段 3，本期唯一無可取代的發現）"],
         "quant": {
-            "schemaVer": f"v{(bub.get('meta') or {}).get('version', 2)}",
+            "schemaVer": schema_ver(bub),
             "composite": bub.get("composite"),
-            "zone": zone_label,
+            "zone": zl,
             "note": f"基準 {first['date'] if first else '—'}（同架構最早一筆）"
                     f"　（填：一句話說明 composite 這期為什麼動）",
             "stage": {"current": st.get("current"), "label": st.get("label", ""),
@@ -279,18 +277,26 @@ def main():
         for k, url in REPOS.items():
             d = os.path.join(W, k)
             if not os.path.isdir(os.path.join(d, ".git")):
-                sh(f"git clone --depth 1 -q {url} {d}")
+                sh(["git", "clone", "--depth", "1", "-q", url, d], f"clone {k}")
             else:
                 # 既有 clone 一定要 pull——殘留上週的 work/ 會靜靜地拿舊資料備料
-                sh(f"git -C {d} pull -q --ff-only")
+                sh(["git", "-C", d, "pull", "-q", "--ff-only"], f"pull {k}")
 
     today = dt.datetime.now(zoneinfo.ZoneInfo("Asia/Taipei")).date()
     lo, hi = str(today - dt.timedelta(days=6)), str(today)
 
+    for k, sub in (("adv", "data"), ("pod", "data"), ("cotd", "data")):
+        dd = os.path.join(W, k, sub)
+        if not os.path.isdir(dd):
+            sys.exit(f"❌ {k} 的 {sub}/ 目錄不存在——這不是「沒新聞」，是上游改了目錄結構。"
+                     f"先去確認該 repo，再依失效模式 3.4 處理。")
+    bp = os.path.join(W, "bub", "data.json")
+    if not os.path.exists(bp):
+        sys.exit("❌ 監控庫的 data.json 不存在——上游可能改了檔案位置。")
     adv_f  = dated_files(os.path.join(W, "adv",  "data"), lo, hi)
     pod_f  = dated_files(os.path.join(W, "pod",  "data"), lo, hi)
     cotd_f = dated_files(os.path.join(W, "cotd", "data"), lo, hi)
-    bub    = jload(os.path.join(W, "bub", "data.json"))
+    bub    = jload(bp)
 
     adv_t, ncard, trunc = build_adv(adv_f)
     pod_t, nep, slim = build_pod(pod_f)
@@ -301,7 +307,11 @@ def main():
 
     # 上一期資訊（site 的 index.json 與單期檔）
     idx = jload(os.path.join(a.site, "data", "index.json"))
+    if not idx.get("issues"):
+        sys.exit("❌ index.json 的 issues 是空的——site 沒 clone 對、或這是尚未初始化的 repo。")
     prev = idx["issues"][0]
+    if "file" not in prev or "issue" not in prev:
+        sys.exit("❌ index.json 最新一期缺 file/issue 欄位——index 可能壞了，先跑 healthcheck。")
     prev_full = jload(os.path.join(a.site, prev["file"]))
     latest = {
         "投顧": adv_f[-1][0] if adv_f else "（窗口內無檔）",
@@ -315,13 +325,35 @@ def main():
     is_date = lambda s: bool(re.match(r"20\d\d-\d\d-\d\d$", str(s)))
     fresh = [k for k, v in latest.items() if is_date(v) and v > prev["date"]]
     tg = bub.get("triggers") or []
-    lit_n = sum(1 for x in tg if x.get("state"))
+    lit_n = sum(1 for x in tg if is_lit(x))
+
+    # ── 上游改版偵測：對 data/upstream.json（上一期發布時的指紋）做明文 diff ──
+    fp_now = upstream_fingerprint(bub)
+    fp_path = os.path.join(a.site, "data", "upstream.json")
+    fp_old = jload(fp_path) if os.path.exists(fp_path) else None
+    fp_diff = diff_fingerprint(fp_old, fp_now)
+
+    # ── 訊號帳本：把未結案的判斷攤開，逼本期驗收 ──
+    calls_path = os.path.join(a.site, "data", "calls.json")
+    calls = jload(calls_path).get("calls", []) if os.path.exists(calls_path) else []
+    open_calls = [c for c in calls if c.get("status") == "open"]
+    closed = [c for c in calls if c.get("status") in ("hit", "miss", "expired")]
+    n_hit = sum(1 for c in closed if c["status"] == "hit")
+    n_miss = sum(1 for c in closed if c["status"] == "miss")
     thin = []
     if len(adv_f) <= 3: thin.append(f"投顧僅 {len(adv_f)} 天（≤3，about.run 須註明、共振保守）")
     if len(pod_f) <= 2: thin.append(f"節目僅 {len(pod_f)} 天（≤2，同上）")
     if len(cotd_f) < 3: thin.append(f"圖表僅 {len(cotd_f)} 天（<3，「圖表側寫」只列可用的）")
 
-    md = [f"# PREP · {today}（窗口 {lo} ～ {hi}）\n",
+    md = [f"# PREP · {today}（窗口 {lo} ～ {hi}）\n"]
+    if fp_diff:
+        md += ["## 🛑 上游改版偵測（監控庫與上一期發布時的指紋不一致）",
+               "以下差異**必須寫進本期 `gaps`**；若涉及維度或權重，跨期比較要依規格處理斷點。"]
+        md += [f"- {d}" for d in fp_diff]
+        md += [""]
+    elif fp_old is None:
+        md += ["> （首次執行指紋偵測：本期發布後將建立 data/upstream.json 基準）", ""]
+    md += [
           "## 涵蓋",
           f"- 投顧 {len(adv_f)} 天／{ncard} 卡（body 截斷 {trunc} 字）→ adv.txt {len(adv_t)//1000}K",
           f"- 節目 {len(pod_f)} 天／{nep} 集（summary 截斷 {slim} 字）→ pod.txt {len(pod_t)//1000}K",
@@ -334,11 +366,8 @@ def main():
           "\n### 上一期 watch（逐條驗收，結果寫進本期 verdict）"]
     md += [f"{i+1}. {w}" for i, w in enumerate(prev_full.get("watch", []))]
     # ── 量化底盤直接內嵌，主線讀 PREP.md 就有全部量化面 ──
-    _h = bub.get("history", [])
     _cur = bub.get("dims", {})
-    _same = sorted([r for r in _h if set(r.get("dims", {})) == set(_cur)],
-                   key=lambda r: r.get("date", ""))
-    _first = _same[0] if _same else None
+    _first, _same = baseline(bub)
     _dm = bub.get("dimMeta", {})
     _qd = bub.get("quadrant") or {}
     _st = bub.get("stage") or {}
@@ -362,6 +391,16 @@ def main():
            "（不是 indicator id），下期驗收才能直接查 `state` 翻轉。`verify.py` 會擋。"]
     md += [f"- {'●' if x.get('state') else '○'} `{x['id']}` {x.get('name','')}"
            f"｜{x.get('value')}｜asof {x.get('asof')}" for x in tg]
+    md += [f"\n## 訊號帳本（戰績 {n_hit} 勝 {n_miss} 敗，未結案 {len(open_calls)} 筆）"]
+    if open_calls:
+        md += ["**逐筆驗收下列未結案判斷**：能裁決的在本期 JSON 的 `calls.close` 結案"
+               "（result: hit／miss／expired），裁決理由寫進 verdict；還不能裁決的不要動。"]
+        for c in open_calls:
+            md += [f"- `{c['id']}`（第 {c.get('issue','?'):03d} 期開）：{c.get('claim','')}"
+                   f"｜裁判：{c.get('judge','')}"
+                   + (f"｜期限 {c['deadline']}" if c.get("deadline") else "")]
+    else:
+        md += ["（無未結案帳目。本期若有可證偽的判斷，記得用 `calls.open` 登帳。）"]
     if thin:
         md += ["\n## ⚠️ 樣本偏薄"] + [f"- {t}" for t in thin]
     if not fresh:
