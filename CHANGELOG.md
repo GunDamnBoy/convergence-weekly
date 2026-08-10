@@ -36,9 +36,9 @@
 
 | 日期 | 版本 | 一句話 | 動到的檔案 | 類型 | 收工 commit |
 |---|---|---|---|---|---|
-| 2026-08-10 | **v1.0** | 深度總檢＋兩個新功能：發布閘門、全面數值對帳、XSS 跳脫、訊號帳本（記分板）、上游改版偵測、前端長期化 | ＋`publish.py` ＋`cwlib.py` ＋`.gitignore` `prepare.py` `verify.py` `make_index.py` `healthcheck.py` `index.html` `AGENT_BRIEF` `MAINTENANCE` | 架構＋功能＋安全 | `9f1ddbd5`＋ |
+| 2026-08-10 | **v1.0** | 深度總檢＋兩個新功能：發布閘門、全面數值對帳、XSS 跳脫、訊號帳本（記分板）、上游改版偵測、前端長期化 | ＋`publish.py` ＋`cwlib.py` ＋`.gitignore` `prepare.py` `verify.py` `make_index.py` `healthcheck.py` `index.html` `AGENT_BRIEF` `MAINTENANCE` | 架構＋功能＋安全 | `9f1ddbd5`→`5d9f41ae`＋ |
 | 2026-08-09 | **v0.9** | 依第 002 期實跑的用量報告優化：骨架化、禁重複勞動、修 watch 綁定漏洞 | `prepare.py` `verify.py` `AGENT_BRIEF` `MAINTENANCE` `data/index.json` | 效能＋修正 | `7acb1d29`＋ |
-| **v1.0** | 22,371 | 3,979 | **26,350** | 7 | 16 |
+| **v1.0** | 22,946 | 4,084 | **27,030** | 7 | 16 |
 | 2026-08-08 | **v0.8** | 建立本檔：逐版詳述、度量趨勢、回溯要點、失效模式歸納 | ＋`CHANGELOG.md` `healthcheck.py` `AGENT_BRIEF` `MAINTENANCE` | 流程 | `46f4192b`＋ |
 | 2026-08-08 | **v0.7.1** | 瘦身後複查，修 12 處含一個零新增判定 bug | `prepare.py` `make_index.py` `AGENT_BRIEF` `MAINTENANCE` | 修正 | `d14797b9` |
 | 2026-08-08 | **v0.7** | token 優化：備料與 index 組裝腳本化、prompt 減半 | ＋`prepare.py` ＋`make_index.py` `AGENT_BRIEF` `MAINTENANCE` `healthcheck.py` | 效能 | `d14797b9` |
@@ -94,7 +94,7 @@
   **修正版通常會讓數字微升，這是正常的**——不要為了守數字而不寫清楚。
 - v0.8 把變更紀錄整段移出 `MAINTENANCE.md`（18,086 → 13,786 字），
   但那**不計入每週成本**——維護文件排程不讀。列在這裡只是提醒別把它跟每週必讀搞混。
-- v1.0 合計升到 26K——這一版是**用固定成本買保險**：新增的字全是規則
+- v1.0 合計升到 27K——這一版是**用固定成本買保險**：新增的字全是規則
   （calls 登帳準則、publish 流程、上游改版分支），對應的是三條原本沒被守住的核心假設。
   與 v0.7 的教訓一致：省 token 的正道是砍回合數與重複勞動，不是砍規則。
 - 表格沒有列「實際 token 用量」，因為那受當週資料量影響（投顧卡片數會變），
