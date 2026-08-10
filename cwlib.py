@@ -68,6 +68,16 @@ def schema_ver(quant_or_bub):
     return {6: "v1", 3: "v2"}.get(n, f"v?（{n} 維，無明寫版本——上游可能改版了）")
 
 
+def is_v2(quant):
+    """單期 quant 是否為 v2 架構。唯一判定：schemaVer 明寫優先，否則以三層 fallback。
+    publish 與 verify 曾各寫一份且 fallback 方向相反——漏寫 schemaVer 時
+    一邊要求 quantVer、一邊不寫，錯誤訊息把人帶偏。規則只在這裡。"""
+    sv = str(quant.get("schemaVer", ""))
+    if sv:
+        return sv not in ("v1",) and sv.startswith("v") and "?" not in sv
+    return len(quant.get("dims", []) or []) == 3
+
+
 def is_lit(trigger):
     """trigger 是否已觸發。統一真值定義：state 只認 0/1（或可轉 int 的等價值）。
 

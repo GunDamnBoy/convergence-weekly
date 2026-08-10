@@ -14,17 +14,18 @@
   1. 不可改寫守衛：目標單期檔已存在且內容不同 → 拒絕（歷史永不改寫，
      這條規則從 v0.9 之前只是 prompt 裡的一句話，現在有程式在守）
   2. 在暫存區組出「發布後的 index.json」（含量化快照、保留 errata 等既有欄位）
-  3. 機械折入 calls：把單期 JSON 的 calls.open／calls.close 併進 data/calls.json 的暫存版
+  3. 機械折入 calls：在記憶體中組出新帳本（驗證失敗即中止，不落地）
   4. 跑 verify.py（草稿＋暫存 index，四個語料參數全帶）——exit 非 0 就停
   5. 原子寫入：單期檔、index.json、calls.json、upstream.json（監控庫指紋基準）
 
-exit：0 發布成功；1 verify 擋下（什麼都沒寫）；2 不可改寫守衛拒絕；3 參數／環境錯誤
+exit：0 發布成功；1 verify 或 calls 折帳擋下（什麼都沒寫）；2 不可改寫守衛拒絕；
+     3 草稿無法解析／缺 date
 """
 import json, os, sys, shutil, subprocess, argparse, datetime as dt, zoneinfo
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from cwlib import upstream_fingerprint, atomic_write_json, is_lit
+from cwlib import upstream_fingerprint, atomic_write_json, is_lit, is_v2
 
 
 def build_entry(issue, prev_entry):
@@ -41,7 +42,7 @@ def build_entry(issue, prev_entry):
         "twHeat": q["twHeat"], "stage": q["stage"]["current"],
         "file": f"data/{date}.json",
     })
-    if str(q.get("schemaVer", "")).startswith("v") and q.get("schemaVer") != "v1":
+    if is_v2(q):
         entry["quantVer"] = q["schemaVer"]
         entry["quadrant"] = {k: q["quadrant"][k] for k in ("heat", "support")}
         entry["trigLit"] = sum(1 for t in q.get("triggers", []) if is_lit(t))
@@ -90,10 +91,10 @@ def main():
     try:
         issue = json.load(open(a.draft, encoding="utf-8"))
     except Exception as e:
-        sys.exit(f"❌ 草稿無法解析：{e}")
+        print(f"❌ 草稿無法解析：{e}"); sys.exit(3)
     date = issue.get("date")
     if not date:
-        sys.exit("❌ 草稿缺 date")
+        print("❌ 草稿缺 date"); sys.exit(3)
 
     data_dir = os.path.join(a.site, "data")
     target = os.path.join(data_dir, f"{date}.json")
@@ -156,12 +157,19 @@ def main():
         print(f"\n❌ verify 未通過（exit {r.returncode}），**什麼都沒有發布**。修完重跑本指令。")
         sys.exit(1)
 
-    # 5) 原子落地
+    # 5) 落地。四份檔案先全部序列化到 .tmp（任何失敗發生在這裡，data/ 未動），
+    #    最後連續四次 os.replace——單檔原子，檔間視窗僅微秒級，把「部分落地」
+    #    的風險壓到 replace 本身失敗（磁碟層級）才會發生。
     bub = json.load(open(os.path.join(a.work, "bub", "data.json"), encoding="utf-8"))
-    atomic_write_json(target, issue)
-    atomic_write_json(idx_path, new_idx)
-    atomic_write_json(calls_path, new_ledger)
-    atomic_write_json(os.path.join(data_dir, "upstream.json"), upstream_fingerprint(bub))
+    up_path = os.path.join(data_dir, "upstream.json")
+    batch = [(target, issue), (idx_path, new_idx), (calls_path, new_ledger),
+             (up_path, upstream_fingerprint(bub))]
+    import io
+    for path, obj in batch:
+        with io.open(path + ".tmp", "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=1)
+    for path, _ in batch:
+        os.replace(path + ".tmp", path)
     n_open = sum(1 for c in new_ledger["calls"] if c["status"] == "open")
     n_hit = sum(1 for c in new_ledger["calls"] if c["status"] == "hit")
     n_miss = sum(1 for c in new_ledger["calls"] if c["status"] == "miss")

@@ -1,42 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-主題匯流訊號報 · 發布前檢查
+主題匯流訊號報 · 發布前檢查（由 publish.py 在暫存區呼叫；也可單獨跑）
 
 用法：
-    python3 verify.py data/2026-08-03.json --adv /path/adv.txt --pod /path/pod.txt \
-        --cotd /path/cotd.txt --bub /path/bub/data.json
+    python3 verify.py <單期JSON> --adv adv.txt --pod pod.txt --cotd cotd.txt \
+        --bub bub/data.json [--index index.json]
 
-檢查十件事：
- 1. 單期 JSON 與 index.json 可解析、必備欄位齊全、章節 id 與順序合規
- 2. index.json 帶有本期的量化快照（跨期趨勢圖的唯一資料來源，漏了圖會斷）
- 3. 敘事側每一條 evidence 都能在 adv.txt / pod.txt / cotd.txt 裡逐字回查到
-    （含 list[] 的條目——單邊訊號整節用 list 而非 evidence，一樣要逐字）
- 3.4 evidence[].s 只能是 監控／投顧／節目／圖表 四者之一。
-    打錯字會讓計票靜靜少一票，而錯誤訊息還會誤導成「來源不夠獨立」，所以先擋下來。
- 3.5 標為「共振」的 item 真的有三個獨立來源。
-    **投顧與圖表計為同一票**——每日五圖的選題取自 advisory-knowledge-hub，
-    「投顧在講＋圖表也在畫」是同一則新聞被數兩次，不是兩個獨立來源。
- 4. 量化側每一條 evidence 引用的指標 id 確實存在於 bub 的 indicators / tw / stage
- 5. 層／維現值與變動 vs history（變動＝現值 − **同架構最早一筆**，不跨改版相減）
- 5.5 觸發器對帳：quant.triggers 的 id 與 state 必須與監控庫一致，
-    index.json 的 trigLit（已觸發數）也要對得上。
- 5.6 watch[] 的 trigger 綁定：**寫出了 trigger id 字串**的條目，該 id 必須用
-    <code>id</code> 包起來，否則下期無法自動驗收 state 翻轉
-    （v0.6 接 triggers 的全部意義就在這）。
-    ⚠️ 限制：只認 id 字串。用純中文描述門檻而完全不寫 id 的 watch 抓不到——
-    那要靠 prompt 的自律，機器擋不了。
- 6. 量化佐證不得取自 events——那是 Google News，會造成同一則新聞被數兩次。
-    這一項是 FAIL，不是 warn。
+檢查分六大類（逐項列印，任何一項 FAIL 就不能發布；正式流程中 publish.py
+會在檔案寫入 data/ **之前**跑本檢查，全過才落地）：
 
-注意 --bub 吃的是**原始 bub/data.json**，不是壓縮過的 bub.txt。
---cotd 則是壓縮過的 cotd.txt（敘事回查用）。
+ A. 結構：必備欄位、章節 id 與順序（CANON/LEGACY）、每節至少一個 item、
+    quant 的 schemaVer/quadrant/triggers（v2）、值域 0–100
+ B. index 快照：欄位存在 ＋ **值層級對帳**（composite/dims/twHeat/stage/quadrant/trigLit
+    逐欄等值——趨勢圖唯一資料來源，錯的點會因歷史永不改寫永遠留在線上）
+ C. 敘事佐證：**逐來源**逐字回查（標錯 s 會被指出「在別的來源找得到」）、
+    **全片段**（不是只驗最長段）、含 list[]、日期格式 M/D、同段佐證不得跨 item 重複、
+    evidence[].s 封閉集合、共振 item 的來源獨立性（投顧＋圖表計一票）
+ D. 量化佐證：<code>欄位名</code> 存在性、**數字 token 逐個對回監控庫原始檔**、
+    不得取自 events
+ E. 量化對帳：層／維現值與變動 vs history（同架構最早一筆，不跨改版）、
+    quant 抄寫欄位 vs 監控庫逐欄 diff（含 zone 標籤）、觸發器 id/state/trigLit 對帳
+ F. watch：提到 trigger id 必須用 <code> 正確標（限制：只認 id 字串，
+    純中文描述門檻的條目機器擋不了——靠 prompt 自律）
 
-任何一項 FAIL 就不要發布。本檔是發布前檢查，跑在寫檔之後、推送之前。
+注意 --bub 吃**原始 data.json**；--cotd 吃壓縮過的 cotd.txt。
+三份敘事語料全有或全無，缺任一整批跳過並回 exit 2 黃燈（黃燈不是通過）。
 """
 import json, re, html, sys, os, argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from cwlib import baseline, dim_ids, schema_ver, is_lit, zone_label, need
+from cwlib import baseline, dim_ids, schema_ver, is_lit, is_v2, zone_label, need
 
 def clean(s):
     return re.sub(r'<[^>]+>', '', html.unescape(str(s))).strip()
@@ -88,7 +81,7 @@ def main():
         if k not in q: fails.append(f"quant 缺欄位 {k}")
     # 監控庫 2026-08-04 由 v1（六維 D1–D6）改版為 v2（三層 L1–L3）。
     # 兩種分群不可換算，所以這裡依版本各驗各的，不做轉換。
-    v2 = q.get('schemaVer') == 'v2' or (not q.get('schemaVer') and len(q.get('dims', [])) == 3)
+    v2 = is_v2(q)   # 判定規則在 cwlib，publish 用同一份——不要在這裡另寫 fallback
     want_ids = ['L1','L2','L3'] if v2 else ['D1','D2','D3','D4','D5','D6']
     got_ids = [x.get('id') for x in q.get('dims', [])]
     if got_ids != want_ids:

@@ -8,14 +8,14 @@
 
 做的事（全部確定性，不需要模型參與）：
   1. clone 四庫（adv / pod / bub / cotd；--no-clone 可重用既有的 work/）
-  2. 依 AGENT_BRIEF.md 第 4 節第 2 步的規格產出四份摘要層：
+  2. 依 AGENT_BRIEF.md 第 4 節「備料」的摘要層規格產出四份摘要層：
        work/adv.txt   每卡一行，body 截斷自動下調（110→80→60→45）以壓在 60K 內
        work/pod.txt   每集三行＋完整 crossCut，目標 ≤24K（summary 截斷 420→300→220）
        work/bub.txt   composite＋三層＋quadrant＋triggers＋22 項指標＋stage＋tw＋events
        work/cotd.txt  每張圖六行（不含 series/option），超過 15K 先截 reading 至 300 字
-  3. 寫 work/PREP.md：涵蓋統計與摘要層大小、各庫最新日期、上一期資訊與 watch 清單全文、
-     **量化底盤全文**（composite／象限／階段／台股熱度／三層變動）、triggers 狀態表、
-     樣本偏薄旗標、零新增資料提示
+  3. 寫 work/PREP.md，段落依序：🛑 上游改版偵測（指紋 diff，變更時才出現）→ 涵蓋統計
+     → 上一期資訊與 watch 全文 → **量化底盤全文** → triggers 狀態表 →
+     **訊號帳本**（戰績＋未結案帳目逼驗收）→ 樣本偏薄旗標 → 零新增資料提示 → 骨架說明
   3b. --emit-skeleton 時另寫 work/skeleton.json：單期 JSON 骨架。
      quant 的**數值**欄位全部抄好（composite／zone／stage.current／twHeat／quadrant／
      三層與變動／triggers 全帶），但 dims[].note、stage.delta、callout、quant.note
@@ -184,7 +184,9 @@ def build_cotd(files):
 def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
     """產出單期 JSON 骨架：所有能從資料推導的欄位全部填好。
 
-    主線只需要填 verdict / sections / watch / gaps / about.run。
+    仍要填的是所有標「（填：…）」的欄位：headline／stamp／verdict／sections（含 lede
+    與 items）／watch／gaps／about.run，以及 quant 裡的 dims[].note／stage.delta／
+    callout／quant.note 四處。calls 有空殼佔位，依 brief 3.1 的登帳準則填。
     quant 整區是純機械的（全部從 bub 抄），手打既慢又容易抄錯——
     第 002 期就是手打 quant 時把 watch 的 trigger id 標成 indicator id。
     """
@@ -257,6 +259,7 @@ def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
         # 合法 id 清單在 PREP.md 的觸發器表。
         "watch": ["（填：每條可觀察可證偽。能對應觸發器的條目要用行內 code 標出正確的"
                   " trigger id，清單見 PREP.md 觸發器表）"],
+        "calls": {"open": [], "close": []},   # 登帳與結案，準則見 brief 3.1；PREP.md 的帳本段列了待驗收帳目
         "gaps": ["（填：缺天／各庫 updatedLabel 過期／指標 asof 落後／卡片數異常／圖表庫 qa_flags）"],
         "about": {"run": "（填：本期執行紀錄與樣本厚度）",
                   "method": "prepare.py 備料 → 兩個平行子代理讀敘事側 → 主線併入量化底盤合成 → verify.py 逐字回查"},
