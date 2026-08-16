@@ -1,0 +1,109 @@
+{
+ "dims": [
+  "L1",
+  "L2",
+  "L3"
+ ],
+ "weights": {
+  "L1": 0.35,
+  "L2": 0.35,
+  "L3": 0.3
+ },
+ "triggers": [
+  {
+   "id": "hy80",
+   "name": "HY 利差 3個月走闊 ≥80bp"
+  },
+  {
+   "id": "ccc12",
+   "name": "CCC 利差 ≥12%（2022 熊市水位）"
+  },
+  {
+   "id": "gsy150",
+   "name": "SOXX 24個月漲幅 ≥150%"
+  },
+  {
+   "id": "cpi4",
+   "name": "CPI 年增 ≥4%"
+  },
+  {
+   "id": "policy_gap",
+   "name": "政策利率 ≥ 名目GDP成長"
+  },
+  {
+   "id": "y10_5",
+   "name": "美債10年 ≥5%"
+  },
+  {
+   "id": "megaipo",
+   "name": "OpenAI／SpaceX 巨型 IPO 完成"
+  }
+ ],
+ "indicators": [
+  "cape",
+  "capexocf",
+  "ccc",
+  "circular",
+  "cloudrev",
+  "debt",
+  "dnagap",
+  "fcf",
+  "gsy_accel",
+  "gsy_runup",
+  "hyoas",
+  "mag7",
+  "narrative",
+  "nvdape",
+  "orclbond",
+  "rpo",
+  "senti",
+  "soxmom",
+  "tokens",
+  "vc",
+  "volchg",
+  "weakcredit"
+ ],
+ "tw_items": [
+  "elec_rel",
+  "odm_pe",
+  "tsmc_200dma",
+  "tsmc_52w",
+  "tsmc_pe",
+  "tsmc_weight",
+  "tw_export",
+  "tw_margin",
+  "tw_rev",
+  "twii_pos"
+ ],
+ "checklist": [
+  "負現金流主體大額發債常態化",
+  "供應商融資（循環交易）規模化",
+  "信用利差趨勢性走闊（HY 3個月 +80bp）",
+  "AI 巨頭 IPO 潮與首日暴漲",
+  "私募信貸/表外融資佔比激增",
+  "弱資質主體信用事件"
+ ],
+ "zones": [
+  {
+   "max": 25,
+   "label": "冷靜期"
+  },
+  {
+   "max": 45,
+   "label": "健康擴張"
+  },
+  {
+   "max": 65,
+   "label": "過熱警戒"
+  },
+  {
+   "max": 84,
+   "label": "泡沫化進行"
+  },
+  {
+   "max": 100,
+   "label": "極端狂熱"
+  }
+ ],
+ "meta_version": 2
+}

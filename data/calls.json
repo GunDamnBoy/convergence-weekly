@@ -1,0 +1,54 @@
+{
+ "calls": [
+  {
+   "id": "c003-1",
+   "opened": "2026-08-16",
+   "issue": 3,
+   "kind": "divergence",
+   "claim": "美債 10 年期在 2026-10-31 前不會升破 5%——本輪長端壓力集中在 30 年期的一級市場，不在 10 年期次級市場",
+   "judge": "<code>y10_5</code> state 是否由 0 翻轉為 1",
+   "deadline": "2026-10-31",
+   "status": "open"
+  },
+  {
+   "id": "c003-2",
+   "opened": "2026-08-16",
+   "issue": 3,
+   "kind": "divergence",
+   "claim": "AI 建置的成本傳導在 2026 年內不會把 CPI 年增推到 4%——它的第一站是廠商毛利率，不是物價指數",
+   "judge": "<code>cpi4</code> state 是否由 0 翻轉為 1",
+   "deadline": "2026-12-31",
+   "status": "open"
+  },
+  {
+   "id": "c003-3",
+   "opened": "2026-08-16",
+   "issue": 3,
+   "kind": "divergence",
+   "claim": "信用壓力是尾端單獨定價而非系統性循環：<code>ccc12</code> 會先於 <code>hy80</code> 觸發，或兩者在期限內都不觸發",
+   "judge": "<code>ccc12</code> 與 <code>hy80</code> 兩個 state 的翻轉先後；若 <code>hy80</code> 先翻轉即為 miss",
+   "deadline": "2026-10-31",
+   "status": "open"
+  },
+  {
+   "id": "c003-4",
+   "opened": "2026-08-16",
+   "issue": 3,
+   "kind": "divergence",
+   "claim": "五大雲廠 Capex／營運現金流在 2026Q3 財報揭露後不會低於 75%（現 81.8%），節目側的自由現金流拐點論不成立",
+   "judge": "監控庫 <code>capexocf</code> 欄位在 2026Q3 更新後的值是否 <75%",
+   "deadline": "2026-11-30",
+   "status": "open"
+  },
+  {
+   "id": "c003-5",
+   "opened": "2026-08-16",
+   "issue": 3,
+   "kind": "watch",
+   "claim": "台股熱度 48.7 是被低估的：<code>tw_export</code> 一旦更新到 7 月數字，<code>twheat</code> 會上升",
+   "judge": "<code>tw_export</code> 的 asof 離開 2026-05 之後，<code>twheat</code> 是否高於 48.7",
+   "deadline": "2026-10-31",
+   "status": "open"
+  }
+ ]
+}
