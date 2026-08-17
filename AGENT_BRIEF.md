@@ -57,7 +57,7 @@
 ```
 https://github.com/GunDamnBoy/advisory-knowledge-hub     → data/YYYY-MM-DD.json、data/index.json
 https://github.com/GunDamnBoy/podcast-knowledge-digest   → data/YYYY-MM-DD.json、data/index.json
-https://github.com/GunDamnBoy/ai-bubble-monitor          → data.json（單檔，含約 17 天 history）
+https://github.com/GunDamnBoy/ai-bubble-monitor          → data.json（單檔，含 history 日序列）
 https://github.com/GunDamnBoy/chart-of-the-day           → data/YYYY-MM-DD.json、data/index.json
 ```
 
@@ -111,8 +111,8 @@ events[{d,t,url}], history[{date,composite,dims{},tw}], charts{}, params{}
 > **算「本期變動」時，基準只能取與現值同一組鍵的最早一筆**，不可跨改版相減。
 > `verify.py` 已實作這條，跨架構會直接擋下。
 >
-> `indicators` 的 id 在 v2 也全換了（`cape`／`mag7`／`gsy_runup`…），
-> 舊期引用的 `hyoas`／`circular` 等在新版不存在。
+> `indicators` 在 v2 為 22 項、id 有增有減（`cape`／`mag7`／`gsy_runup` 等為新增），
+> 但不是整組換掉——`hyoas`／`circular` 等舊 id 仍在。合法欄位名以當期監控庫實際的 id 為準。
 
 **每日五圖**
 ```
@@ -140,7 +140,7 @@ index.json: title, updated, days[{date,weekday,headline,charts,themes[],slots[]}
 - 每週日台北 **21:30** 執行（投顧與圖表庫早上更新、節目庫凌晨更新，排在晚上確保四庫當天的檔都到齊）。
   排程 cron `30 21 * * 0`，**本地時間、非 UTC**（詳見 `MAINTENANCE.md` 第 3 節的警語）。
 - **敘事側**（投顧、節目、每日五圖）取過去 7 個日曆天；
-  **量化側**取 `history` 全部（約 17 個交易日），
+  **量化側**取 `history` 全部（長度以當期實際為準），
   「本期變動」＝**頂層 `dims` 現值 − `history` 中與現值同一組鍵的最早一筆**。
   > 兩個容易寫錯的地方：
   > ① 是「對**現值**」，不是「對 `history` 最後一筆」——監控庫盤後更新時 `history`
@@ -154,8 +154,7 @@ index.json: title, updated, days[{date,weekday,headline,charts,themes[],slots[]}
   > 兩者不相等是正常的（第 001 期窗口 7 天、實際敘事側只涵蓋 6 天），不要為了對齊窗口而虛報。
 - 缺天不是失敗。但若投顧側 **≤ 3 天**或節目側 ≤ 2 天，必須在 `about.run` 註明樣本偏薄，
   且**共振判定要保守**（樣本薄時容易把巧合當共振）。
-  每日五圖 2026-08-05 才開始運作，**前幾期天數必然偏少**，
-  少於 3 天時「圖表側寫」那一節就寫「本期樣本不足，只列可用的幾張」，不要硬湊五張。
+  每日五圖少於 3 天時，「圖表側寫」那一節就寫「本期樣本不足，只列可用的幾張」，不要硬湊五張。
 
 ### 2.1 零新增資料時不產期
 
@@ -479,7 +478,7 @@ python3 site/prepare.py --work work --site site --emit-skeleton
    trigger id 標成 indicator id）。
    你要填的是全部標「（填：…）」的欄位（含 `quant` 裡的 `dims[].note`／`stage.delta`／
    `callout`／`quant.note` 四處）、`sections[].items`、`watch`、`gaps`，
-   以及 **`calls`**（骨架有空殼佔位；登帳準則見 §3.1——只登可證偽的，能結案的要結案）。
+   以及 **`calls`**（骨架有空殼佔位；登帳準則見 §3.2 末——只登可證偽的，能結案的要結案）。
 2. 跑 `python3 site/publish.py work/issue.json --work work --site site`——
    它做完全部收尾：不可改寫守衛 → 組 index 快照 → 折入 calls 帳本 → **跑 verify**
    → 全過才原子寫入 `data/`（單期檔＋index＋calls＋upstream 指紋）。
@@ -584,8 +583,9 @@ v1.0 起 `verify.py` 由 `publish.py` 在**暫存區**呼叫，跑在寫入 `dat
 3. `feedback` 章節目前是人看了再處理。若累積穩定，可考慮讓它自動開 issue 到對應的 repo。
 4. 跨期趨勢九格選得對不對，累積 4 期後檢視（連續組 3 格 ＋ v2 組 6 格）。
 5. ~~監控庫 v2 的 `triggers` 尚未接入~~ → v0.6 已接入（見第 3.0 節背離節規則與 3.1 schema）。
-   **待觀察**：7 條門檻目前全部 `state=0`，等第一條亮起來時檢視
-   「已定義門檻」與「自己定義的門檻」在背離節裡的比例是否合理。
+   **待檢視（條件已滿足）**：`gsy150` 自 2026-08-09（第 002 期）起 `state=1`，
+   第 002、003 期 `trigLit` 皆為 1。可以檢視「已定義門檻」與「自己定義的門檻」
+   在背離節裡的比例是否合理。
 6. **每日五圖 2026-08-05 才上線**，前幾期樣本必然偏薄；
    累積兩週後檢視「圖表側寫」這一節是否真的產出數字落地，而不是變成圖說重述。
 7. ~~上游改版沒有主動偵測機制。~~ **v1.0 已解決**：`cwlib.upstream_fingerprint`

@@ -186,7 +186,7 @@ def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
 
     仍要填的是所有標「（填：…）」的欄位：headline／stamp／verdict／sections（含 lede
     與 items）／watch／gaps／about.run，以及 quant 裡的 dims[].note／stage.delta／
-    callout／quant.note 四處。calls 有空殼佔位，依 brief 3.1 的登帳準則填。
+    callout／quant.note 四處。calls 有空殼佔位，依 brief 3.2 末的登帳準則填。
     quant 整區是純機械的（全部從 bub 抄），手打既慢又容易抄錯——
     第 002 期就是手打 quant 時把 watch 的 trigger id 標成 indicator id。
     """
@@ -259,7 +259,7 @@ def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
         # 合法 id 清單在 PREP.md 的觸發器表。
         "watch": ["（填：每條可觀察可證偽。能對應觸發器的條目要用行內 code 標出正確的"
                   " trigger id，清單見 PREP.md 觸發器表）"],
-        "calls": {"open": [], "close": []},   # 登帳與結案，準則見 brief 3.1；PREP.md 的帳本段列了待驗收帳目
+        "calls": {"open": [], "close": []},   # 登帳與結案，準則見 brief 3.2 末；PREP.md 的帳本段列了待驗收帳目
         "gaps": ["（填：缺天／各庫 updatedLabel 過期／指標 asof 落後／卡片數異常／圖表庫 qa_flags）"],
         "about": {"run": "（填：本期執行紀錄與樣本厚度）",
                   "method": "prepare.py 備料 → 兩個平行子代理讀敘事側 → 主線併入量化底盤合成 → verify.py 逐字回查"},
