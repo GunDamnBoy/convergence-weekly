@@ -200,7 +200,8 @@ git push -u origin main
   這是 `events` 禁令的同型問題，第三次踩到同一個坑了（`events`、然後是圖表庫）：
   **每接一個新來源，第一個要問的問題永遠是「它的上游是誰」。**
 - **監控庫 2026-08-04 改版且不可換算。** 六維 `D1`–`D6` → 三層 `L1`/`L2`/`L3`，
-  分群邏輯不同（主題 vs 資料更新頻率），`indicators` 的 id 也全換。
+  分群邏輯不同（主題 vs 資料更新頻率），`indicators` 的 id 有增有減
+  （v2 為 22 項；`hyoas`／`circular` 等舊 id 仍在，不是整組換掉）。
   `history` 舊筆保留 D 鍵，算變動時基準只能取同架構的最早一筆。
   `quant.schemaVer` 與 `index.json` 的 `quantVer` 就是用來標這條線的，漏寫會 FAIL。
 - **`verify.py` 第 5.6 項只認 id 字串。** 用純中文描述門檻而完全不寫 trigger id 的
