@@ -35,150 +35,61 @@ git push -u origin main
 ## 2. 標準修改流程
 
 1. 改 `AGENT_BRIEF.md`（規格）
-2. **只在流程或分支判斷改變時**才動排程 prompt，用
-   `mcp__claude-code-remote__update_trigger` 同步
-   （**trigger_id：`trig_019G2kX2G2QLbdYDYEt4PWkf`**）。
-   ⚠️ `prompt` 是**整份取代，不是局部編輯**——送出前確認所有段落都帶上了，漏掉的段落等於刪除。
+2. **只在流程或分支判斷改變時**才動 run skill。
+   **正本是 `kb-core/skills/convergence/SKILL.md`**，排程裡那一份是它的副本 ——
+   改了正本沒重貼，就是下一輪的漂移。詳見第 3 節。
 3. 在 `CHANGELOG.md` 加變更紀錄——**逐檔改動、被否決的選項、驗證方式、回溯要點**
-   四項都要寫（模板見該檔第 4 節任一版）。收工前跑 `python3 healthcheck.py --metrics`
-   把度量與 HEAD 填進第 1、2 節。**「為什麼改」跟「改了什麼」一樣重要。**
+   四項都要寫（模板見該檔第 4 節任一版）。**「為什麼改」跟「改了什麼」一樣重要。**
 4. 動到單期 JSON schema 時，**「一組要一起改」的清單以 `AGENT_BRIEF.md`
    第 3.0 節末為唯一正本**，本檔不再複寫——這份清單在本檔的複本已經過期三次
    （v0.4→v0.5.1→v1.0，每次都少列新檔），複本本身就是失效模式 3.1。
    ⚠️ `build_issue.py` 不在組內——已凍結在第 001 期，刻意不追著改。
 5. 事故經過與被否決的選項寫本檔第 6 節
 
-✅ **v2 起維護時讀得到實際生效的 prompt。**
-`mcp__claude-code-remote__list_triggers` 會回傳完整的 prompt 內容，
-所以本檔第 3 節與實際生效內容**可以逐字 diff**。
-
-> 舊版這裡寫著「那是受保護目錄、無法 diff，唯一的防線是紀律」——
-> **那個說法是錯的，而錯誤的代價是把唯一可機械驗證的防線當成不可能而放棄。**
-> 改 prompt 之後跑一次 `list_triggers` 對一下，不要只靠紀律。
-
 **改完務必自問一次：這條規則排程執行時讀得到嗎？**
-排程每次觸發都是全新 session，只讀 `AGENT_BRIEF.md` 與 prompt 本身。
+排程每次觸發都是全新 session，只讀 `AGENT_BRIEF.md` 與 run skill 本身。
 只寫在本檔（維護文件）的規則，排程永遠不會知道——v0.4 就是這樣掉了三條關鍵規則。
 
 ---
 
-## 3. 排程 prompt（整份取代用）
+## 3. 排程：本機執行，正本在 kb-core
 
-> 建立方式：`mcp__claude-code-remote__create_trigger`，
-> trigger_id **`trig_019G2kX2G2QLbdYDYEt4PWkf`**，
-> cron **`0 13 * * 1`（UTC）＝ 週一 21:00 台北**。
->
-> ⚠️ **這個工具的 cron 是 UTC，不是本地時間** —— 跟舊工具相反。
-> v1 用的 `mcp__scheduled-tasks__*` 吃本地時間，所以舊文件寫 `30 21 * * 0`；
-> **換了工具就換了時區慣例**，照抄舊字串會排到台北週一凌晨。
->
-> ⚠️ **v2 從週日改到週一，理由是量出來的**：外資報告週摘週日 23:00 才發布、
-> 泡沫監控的每週質化覆核是週一 09:00 —— 舊時點跑，這兩樣讀到的都是上一週的版本。
-> 詳見 `AGENT_BRIEF.md` §2。
-> 可用既有排程印證：`advisory-dashboard-daily` 的時刻欄位是「7 點 30 分」，
-> 對應的就是台北 07:30 而非 UTC 07:30。
-> （這裡刻意不寫出那個錯誤的 cron 字串，因為 `healthcheck.py` 會把文件裡出現的
-> 每一個 cron 樣式抓出來比對，多一個就會 FAIL。）
-> 每次觸發都是全新 session，所以 prompt 必須完整、獨立、不依賴任何對話記憶。
+**這一套自 2026-08-23 起是 Cowork 桌面的「夾資料夾」排程，跑在 Mac 上，不是雲端。**
 
-```
-你要產出「主題匯流訊號報」的新一期——把四個知識庫做跨庫比對，找出共振、背離、裂縫與早期訊號。
-產出不是資訊，是訊號的合成。讀起來像「本週新聞回顧」就是做失敗了。
-全程繁體中文（台灣用語）。完整規格見 repo 內的 AGENT_BRIEF.md，開工前先完整讀它。
-本 prompt 只是流程骨架；門檻、字數、格式、禁令一律以 AGENT_BRIEF.md 為準。
+| | 這一套現在 | 2026-08-23 之前 |
+|---|---|---|
+| 在哪跑 | Mac mini（桌面排程，夾 `convergence-weekly` 與 `outbox`） | Anthropic 雲端容器 |
+| 怎麼交草稿 | 直接寫 `~/outbox/convergence/` | `device_commit_files` 過橋 |
+| prompt 正本 | `kb-core/skills/convergence/SKILL.md` | 本檔第 3 節（一份會過期的複本） |
+| 出現在 `list_triggers` | 否 | 是 |
 
-第 1 步：備料（跑現成腳本，不要自己寫摘要程式）
-  git clone --depth 1 https://github.com/GunDamnBoy/convergence-weekly.git site
-  python3 site/prepare.py --work work --site site --emit-skeleton
-  它會 clone 四庫、產出四份摘要層，印出 PREP.md（涵蓋統計、各庫最新日期、
-  **量化底盤全文**、上一期 watch 清單全文、triggers 狀態表、樣本偏薄旗標），
-  並寫出 work/skeleton.json——**單期 JSON 骨架，quant 整區已經填好**。
-  讀 PREP.md 與 site/AGENT_BRIEF.md 就夠。
-  ⚠️ **不要讀任何原始 JSON，也不要讀 verify.py／publish.py／cwlib.py／make_index.py／prepare.py 的原始碼**
-     ——它們的用法本 prompt 已經寫完，讀原始碼零收益。
-     bub.txt 只在要查某個特定指標的 score／zone／asof 時才讀。
-  ⚠️ exit 3 ＝ 四庫都沒有比上一期新的資料。依規格 §2.1 不產期：
-     直接在交付訊息寫明「本次未產期」與各庫實際最新日期，不寫任何檔案，結束。
-  ⚠️ PREP.md 出現「樣本偏薄」旗標時，about.run 須註明、共振判定保守；
-     圖表側樣本 <3 天時「圖表側寫」節只列可用的，不要硬湊。
-  ⚠️ PREP.md 頂部出現「🛑 上游改版偵測」時：把列出的差異**全部寫進本期 gaps**；
-     涉及維度或權重的，跨期比較依 brief 的斷點規則處理，不要硬接。
-  ⚠️ PREP.md 的「訊號帳本」段列出未結案帳目：能裁決的**必須**在本期 calls.close 結案
-     （result: hit/miss/expired），裁決理由寫進 verdict；還不能裁決的不要動。
+### 為什麼換
 
-第 2 步：兩個子代理平行萃取敘事側（必須平行、必須互相看不到對方的檔案）
-  這是正確性問題不是效率問題：同一個上下文讀完兩庫，會在後讀的那庫尋找前一庫講過的東西，
-  「共振」就變成自我實現的預言。不要合併、不要讓其中一個知道另一個存在。
-  子代理 A 讀 work/adv.txt → 8–14 個主題（敘事重心、出現強度、有無轉向、3–5 條逐字佐證）
-           ＋「只出現一次但值得注意的訊號」5–8 條
-  子代理 B 讀 work/pod.txt → 8–12 個主題（核心主張、講者分歧最重要、出現強度、2–4 條逐字佐證）
-           ＋「podcast 已在講但新聞沒跟上的事」5–8 條
-  兩者都要求：佐證逐字取自檔案，寧可少寫也不要編；**一次把整份檔案讀完，不要分段讀**
-  （分段會產生多次快取寫入，那是 ×2 權重的成本）。
-  ⚠️ 不要為 cotd 派第三個子代理——圖表庫選題與投顧同源，獨立萃取只會製造假共振的材料；
-     它有價值的是數字，由主線自己讀。
+**雲端排程 session 拿不到本機檔案。** 整個 `mcp__remote-devices__*` 命名空間在
+排程執行時不存在 —— 2026-08-23 三次獨立測量，其中一次帶 `requires_local_device: true`
+也一樣。於是 `device_commit_files` 那一步必定失敗。
 
-第 3 步：主線自己合成（不可外包）。順序有講究——
-  先看 PREP.md 的「量化底盤」與 work/cotd.txt 把量化面攤開，再拿兩份敘事主題去對。
-  反過來做只找得到「指標支持敘事」的部分，找不到背離——而背離是本系統唯一無可取代的產出。
+**而它失敗的樣子跟成功一模一樣**：那一輪照樣備料、照樣合成、照樣寫出漂亮的交付訊息，
+只是草稿沒有落地 —— 沒有草稿、沒有回執、網站不更新。
 
-  合成時的判斷原則（機器驗不了，靠你自律）：
-  · 計票：三方共振＝三個獨立聲音（投顧＋圖表合計一票／節目／量化）。
-  · 背離節必須給裁判方法，優先引用 PREP.md 的 triggers 現成門檻；
-    watch[] 能對應 trigger 的**必須用 <code>trigger_id</code> 標出正確 id**
-    （PREP.md 觸發器表列了合法 id；注意 ccc12 不是 ccc、hy80 不是 stage）。
-    **verify.py 會擋，標錯或漏標就是 FAIL。**
-  · 逐條驗收上一期 watch（PREP.md 已附全文），有結果的寫進本期 verdict。
-  · **登帳**：本期可證偽的判斷（背離的甲/乙裁決、有門檻的 watch）用 calls.open 登帳
-    （id 格式 c<期號>-<序號>，claim＋judge 必填，judge 能對應 trigger 就寫 trigger）。
-    「值得觀察」這種不可證偽的敘述不准登帳。schema 見 brief 第 3.2 節末。
-  · 「本期判斷」3 段，必須表態，不要寫「值得持續觀察」這種話。
-  · 圖表側寫節＝數字落地：把敘事的形容詞換成圖表算出的數字；選題本身不是證據。
-  · 單邊訊號只標記不判斷（避免把未驗證的東西講成結論）。
-  · 不重述新聞（每條要有「因為幾庫都／只有一庫講，所以⋯」）；不硬湊章節；
-    數字打架就把出入寫出來；佐證一律逐字，引 crossCut 要標明出處不可偽裝成集數標題。
+投顧（07:30）與每日五圖（11:30）從一開始就是夾資料夾的本機排程，所以每天都正常；
+泡沫與匯流是後來用 `create_trigger` 加的，走了雲端那條路。
+**兩套週頻的都壞了、兩套日頻的都好的，這個分佈本身就是線索**，而它被當成巧合了三個星期。
 
-  結構與格式（verify.py 會逐項擋，違反就是 FAIL 重來——細節見 brief 第 3、5 節）：
-  sections 恰 5 節 resonance→divergence→taiwan→charts→single、編號寫在 title 裡／
-  每節至少一個 item（真沒有就寫「本週無」的說明 item）／
-  evidence[].s 只能是 監控／投顧／節目／圖表、日期一律 M/D（如 8/5）／
-  同一段佐證不得跨 item 重複使用／量化佐證用 <code>欄位名</code> 且不得取自 events／
-  quant 要 schemaVer:"v2"＋note＋quadrant＋triggers 7 條全帶、數值 0–100／
-  gaps 必寫進 JSON（含缺天、updatedLabel 過期、asof 落後、卡片數異常、
-  圖表庫 qa_flags 五項）。
+### 要改流程的時候
 
-第 4 步：寫草稿並發布（一條指令收尾，不要自己拆步驟）
-  **以 work/skeleton.json 為底**寫草稿到 **work/issue.json**——
-  ⚠️ 不要直接寫 site/data/！dashpush 每 180 秒無條件推送，寫進 data/ 就等於發布，
-     檢查必須發生在那之前。
-  date／issue／label／range／coverage 已填好；quant 的**數值欄位**也已從監控庫抄好，
-  直接沿用。你要填的是全部標「（填：…）」的欄位（含 quant 裡的 dims[].note／
-  stage.delta／callout／quant.note 四處）、sections[].items、watch、gaps、calls。
-  **不要重打 quant 的數值**——那是機械抄寫，手打會抄錯
-  （第 002 期就是這樣把 watch 的 trigger id 標成 indicator id）。
-  寫完跑：
-  python3 site/publish.py work/issue.json --work work --site site
-  它做完全部收尾：不可改寫守衛 → 組 index 快照 → 折入 calls 帳本 → 跑 verify（全部檢查，
-  含逐來源逐字回查、數字對帳、quant vs 監控庫對帳、watch 綁定）→
-  **全過才原子寫入 data/**（單期檔＋index＋calls＋upstream 指紋）。
-  任何一步失敗 data/ 一個位元組都不會動——看報告修草稿，重跑同一指令，exit 0 才算發布。
-  ⚠️ 不要自己逐條回查引文（verify 會做，含 list[] 與數字）；
-     不要自己跑 make_index／verify 再手動複製檔案——publish.py 是唯一的發布路徑。
+改 `kb-core/skills/convergence/SKILL.md`，**然後把整份貼回桌面排程的 prompt 欄**。
+`kb-core/skills/README.md` 有四套 run skill 共用的形狀與檢核點。
 
-第 5 步：推送與交付
-  用 device_commit_files 寫回本機 ~/convergence-weekly，交給 com.kenny.dashpush 自動推送。
-  ⚠️ 不要對本機的 ~/convergence-weekly 跑任何 git 指令（git status 也不行）——
-     dashpush 每 180 秒自動 commit＋push，你跑 git 會留下 index.lock 把它永久擋住。
-     沙箱裡 clone 的複本不受此限。
-  退路：連不到本機就改用 SendUserFile 附上本期 JSON 與 index.json，
-        明確告知需要手動放進 repo——不要靜靜地跳過發布。
-  交付訊息寫四行：本期最重要的判斷、上一期 watch 驗收結果、
-  **帳本戰績（publish 輸出的 N 勝 M 敗 K 未決）**、發現的資料缺口。
-  附線上網址（帶 cache-buster），確認期別按鈕數量與跨期趨勢點數。
-  （趨勢的 v2 六格要累積 2 期 v2 才會出現，只有 1 期時不畫是正常的。）
-```
+**不要用 `create_trigger` 重建**：那個工具沒有 folder 參數，
+建出來的一律是雲端任務 —— 也就是上面那個壞掉的形狀。
 
----
+### 已退場
+
+舊的雲端 trigger `trig_019G2kX2G2QLbdYDYEt4PWkf`（cron `0 13 * * 1` UTC）
+已於 2026-08-23 停用。本節原本嵌著一份供整份取代用的 prompt 複本，
+**在停用時它已經是 v1 的內容（四庫、沒有賣方對帳）** —— 複本會過期，
+這正是第 2 節第 4 點講的失效模式 3.1，所以連同 trigger 一起退場。
 
 ## 4. 已知的坑
 
