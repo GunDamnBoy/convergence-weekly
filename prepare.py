@@ -310,9 +310,15 @@ def main():
 
     # 上一期資訊（site 的 index.json 與單期檔）
     idx = jload(os.path.join(a.site, "data", "index.json"))
-    if not idx.get("issues"):
-        sys.exit("❌ index.json 的 issues 是空的——site 沒 clone 對、或這是尚未初始化的 repo。")
-    prev = idx["issues"][0]
+    # **索引鍵是 `days`，不是 `issues`**（2026-08-23 遷移，對齊 kb-core 的發布軌）。
+    # 三種狀態要分得開 —— 一個「空的」訊息會把人指去「site 沒 clone 對」，
+    # 而真正的原因是 repo 還沒遷移。**大聲失敗但診斷錯，只做對了一半。**
+    if idx.get("issues") is not None and idx.get("days") is None:
+        sys.exit("❌ 這個 repo 的 index.json 還是舊的 `issues` 鍵 —— "
+                 "先跑 kb-core 的 tools/convergence_migrate_index.py。")
+    if not idx.get("days"):
+        sys.exit("❌ index.json 的 days 是空的——site 沒 clone 對、或這是尚未初始化的 repo。")
+    prev = idx["days"][0]
     if "file" not in prev or "issue" not in prev:
         sys.exit("❌ index.json 最新一期缺 file/issue 欄位——index 可能壞了，先跑 healthcheck。")
     prev_full = jload(os.path.join(a.site, prev["file"]))
