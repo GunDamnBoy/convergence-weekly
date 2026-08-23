@@ -247,7 +247,7 @@ function fmtDelta(d){
 
 /* ---------- renderers ---------- */
 function renderTrend(index){
-  const iss = [...index.issues].sort((a,b) => a.date.localeCompare(b.date));
+  const iss = [...index.days].sort((a,b) => a.date.localeCompare(b.date));
   if(iss.length < 2){
     return `<div class="ctitle">跨期趨勢</div>
       <div class="csub">每一期的量化底盤都會被保留，累積兩期以上後這裡會顯示走勢。</div>
@@ -383,7 +383,7 @@ function renderItem(it){
 // 勘誤：既有單期檔永不改寫，所以事後發現的問題掛在 index.json 的期別項目上。
 // 每一期的 errata 是選填字串陣列，有值才顯示橫幅。
 function renderErrata(index, date){
-  const me = index.issues.find(i => i.date === date);
+  const me = index.days.find(i => i.date === date);
   if(!me || !me.errata || !me.errata.length) return '';
   return `<div class="warn" style="margin:18px 0 0">
     <b>本期勘誤（發布後發現，原文保留未改寫）</b>
@@ -393,8 +393,8 @@ function renderErrata(index, date){
 function renderIssue(d, index){
   const src = d.coverage.map(c => `<span>${esc(c.k)} · ${esc(c.v)}</span>`).join('');
   // 期別到 50 期時全列按鈕會佔掉兩個螢幕——只列最近 12 顆，其餘進下拉
-  const recent = index.issues.slice(0, 12);
-  const older  = index.issues.slice(12);
+  const recent = index.days.slice(0, 12);
+  const older  = index.days.slice(12);
   let btns = recent.map(i =>
     `<button data-file="${esc(i.file)}" data-date="${esc(i.date)}"
        aria-current="${i.date === d.date}">第 ${String(i.issue).padStart(3,'0')} 期 · ${esc(i.short)}</button>`).join('');
@@ -510,7 +510,7 @@ async function load(file, index, ledger){
     try{ ledger = await getJSON('data/calls.json'); }catch(_){}   // 帳本尚未建立時靜靜略過
     const pick = () => {
       const want = location.hash.replace('#','');
-      return index.issues.find(i => i.date === want) || index.issues[0];
+      return index.days.find(i => i.date === want) || index.days[0];
     };
     window.addEventListener('hashchange', () => load(pick().file, index, ledger));
     await load(pick().file, index, ledger);
