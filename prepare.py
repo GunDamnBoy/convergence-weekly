@@ -7,12 +7,14 @@
     python3 prepare.py [--work work] [--no-clone] [--site …] [--emit-skeleton]
 
 做的事（全部確定性，不需要模型參與）：
-  1. clone 四庫（adv / pod / bub / cotd；--no-clone 可重用既有的 work/）
+  1. clone **五庫**（adv / pod / bub / cotd / res；--no-clone 可重用既有的 work/）
   2. 依 AGENT_BRIEF.md 第 4 節「備料」的摘要層規格產出四份摘要層：
        work/adv.txt   每卡一行，body 截斷自動下調（110→80→60→45）以壓在 60K 內
        work/pod.txt   每集三行＋完整 crossCut，目標 ≤24K（summary 截斷 420→300→220）
        work/bub.txt   composite＋三層＋quadrant＋triggers＋22 項指標＋stage＋tw＋events
        work/cotd.txt  每張圖六行（不含 series/option），超過 15K 先截 reading 至 300 字
+       work/res.txt   crosscut 全文＋每筆分析師原句＋watch，目標 ≤30K（**不含 summary**）
+       work/stances.json  外資報告的立場帳本原樣複製一份，給 publish 的閘門讀
   3. 寫 work/PREP.md，段落依序：🛑 上游改版偵測（指紋 diff，變更時才出現）→ 涵蓋統計
      → 上一期資訊與 watch 全文 → **量化底盤全文** → triggers 狀態表 →
      **訊號帳本**（戰績＋未結案帳目逼驗收）→ 樣本偏薄旗標 → 零新增資料提示 → 骨架說明
@@ -34,6 +36,9 @@ REPOS = {
     "pod":  "https://github.com/GunDamnBoy/podcast-knowledge-digest",
     "bub":  "https://github.com/GunDamnBoy/ai-bubble-monitor",
     "cotd": "https://github.com/GunDamnBoy/chart-of-the-day",
+    # 第五庫，2026-08-23 加入。**它的上游是券商 PDF，與新聞不同源**，
+    # 所以計票上是獨立的第四票（見 checks/convergence.py 的 VOICE 表）。
+    "res":  "https://github.com/GunDamnBoy/broker-research-digest",
 }
 
 def sh(args, what=""):
@@ -181,6 +186,107 @@ def build_cotd(files):
         txt, nch = render(rlim)
     return txt, nch
 
+def build_res(files):
+    """外資報告週摘 → `res.txt`。回 (文字, 報告份數, 原句筆數)。
+
+    ## 吃 `crosscut` 與 `stances`，**不吃 `summary`**
+
+    量出來（2026-08-23，當期 23 份）：`summary` 合計 106,449 字元，
+    `stances` 81 筆的原句＋中譯合計 16,352 字元 —— **15%**。
+
+    - `summary` 是寫給人讀的精華，而它**已經被 `crosscut` 綜合過了**。
+      再讀一次等於兩個系統對同一批 PDF 做同一件事，下游那次還看得比較少。
+    - `crosscut` 是**賣方這一票的立場本身**。它已經在做跨券商的共振與分歧分析
+      （原文：「兩家看的是同一組資料、給出相反的方向」），所以匯流讀它、不重做它。
+    - `stances` 是分析師的逐字原句，帶主題、頁碼、券商、日期、到期日 ——
+      **這個庫裡訊號密度最高、而且是唯一可證偽的那一層**。
+
+    ## 上限 30K，是量出來的不是拍的
+
+    2026-08-23 實測（當期 23 份、81 筆原句，合計 23,657 字元）：
+
+    | 組成 | 字元 | 占比 |
+    |---|---|---|
+    | 原句 `quote` | 12,292 | **52.0%** |
+    | 中譯 `quote_zh` | 4,060 | 17.2% |
+    | 報告標題行 | 3,112 | 13.2% |
+    | `crosscut`（全文，不截） | 2,205 | 9.3% |
+    | 其餘（theme／watch／notes） | 1,988 | 8.4% |
+
+    第一版把上限拍成 20K，於是每一期都會超標 —— 而**一條天天被違反的規格
+    就不是規格**。上限改成 30K，那是實測值加約 25% 的餘裕。
+
+    ## 截原句，不減筆數 —— 而這個階梯平時不會動
+
+    原句平均 **152 字元**，本來就低於階梯最低的那一階（160），
+    所以在 30K 的上限下它一次都不會觸發。**那是刻意留著的**：
+    某一週要是進來一份原句特別長的報告（平均 >250 字），它才會動。
+
+    **不要為了讓階梯「有用」而把上限調低** —— 52% 的內容是原句，
+    而原句是這個庫裡唯一可證偽的那一層。少一筆原句等於少一條可以被裁決的主張。
+    """
+    def render(qlim):
+        parts, nrep, nst = [], 0, 0
+        for date, fp in files:
+            d = jload(fp)
+            parts.append(f"\n===== {date}｜{d.get('week','')}｜"
+                         f"{d.get('reports_count', len(d.get('reports') or []))} 份 =====")
+            cc = d.get("crosscut")
+            if cc:
+                # **`crosscut` 一律全文。** 它是賣方那一票的立場，截斷等於改立場。
+                parts.append("【跨報告觀察（賣方這一票的立場）】")
+                parts.append(str(cc))
+            for r in (d.get("reports") or []):
+                nrep += 1
+                parts.append(f"▸{r.get('broker','')}｜{r.get('title','')}"
+                             f"｜{r.get('date','')}｜{r.get('pages','?')}頁"
+                             + (f"｜{'/'.join(r.get('tags') or [])}" if r.get("tags") else ""))
+                for st in (r.get("stances") or []):
+                    nst += 1
+                    q = str(st.get("quote") or "")
+                    parts.append(f"  ◆{st.get('theme','')}｜p{st.get('page','?')}｜"
+                                 + (q if qlim is None else q[:qlim]))
+                    if st.get("quote_zh"):
+                        parts.append(f"    {st['quote_zh']}")
+            for w in (d.get("watch") or []):
+                parts.append(f"  [watch] {w}")
+            for n in (d.get("notes") or []):
+                parts.append(f"  [note] {n}")
+        return "\n".join(parts), nrep, nst
+    txt, nrep, nst = render(None)
+    for qlim in (300, 220, 160):
+        if len(txt) <= 30000: break
+        txt, nrep, nst = render(qlim)
+    return txt, nrep, nst
+
+
+def due_stances(res_dir, today, horizon=7):
+    """**到期待裁決的分析師主張。** 回 (清單, 總筆數, 已裁決筆數)。
+
+    外資報告的 `stances.json` 是一份可證偽帳本：96 筆原句，帶
+    `due`（報告日 + 3 個月）、`status`、`verdict`。**而沒有任何流程在判它們。**
+
+    匯流是唯一同時看得到「主張」（券商原句）與「證據」（量化指標、新聞、節目）
+    的地方，而且它是週頻，正好對得上到期節奏 —— 所以裁決歸這裡。
+
+    窗口是 `today + horizon`，**刻意往前看一週**：到期當週才發現要判，
+    那一期已經沒有時間去找證據了。
+
+    **回空清單與「找不到帳本」要分得開** —— 前者是這一週沒有到期的，
+    後者是上游改了檔案位置，而兩者在輸出上長得一模一樣。
+    """
+    p = os.path.join(res_dir, "data", "stances.json")
+    if not os.path.exists(p):
+        return None, 0, 0        # None ＝ 沒有帳本，跟「這週沒有到期的」是兩件事
+    items = (jload(p) or {}).get("items") or []
+    done = sum(1 for x in items if (x.get("verdict") or "").strip())
+    cut = str(dt.date.fromisoformat(str(today)) + dt.timedelta(days=horizon))
+    due = [x for x in items
+           if not (x.get("verdict") or "").strip() and str(x.get("due", "")) <= cut]
+    due.sort(key=lambda x: (x.get("due", ""), x.get("id", "")))
+    return due, len(items), done
+
+
 def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
     """產出單期 JSON 骨架：所有能從資料推導的欄位全部填好。
 
@@ -288,7 +394,7 @@ def main():
     today = dt.datetime.now(zoneinfo.ZoneInfo("Asia/Taipei")).date()
     lo, hi = str(today - dt.timedelta(days=6)), str(today)
 
-    for k, sub in (("adv", "data"), ("pod", "data"), ("cotd", "data")):
+    for k, sub in (("adv", "data"), ("pod", "data"), ("cotd", "data"), ("res", "data")):
         dd = os.path.join(W, k, sub)
         if not os.path.isdir(dd):
             sys.exit(f"❌ {k} 的 {sub}/ 目錄不存在——這不是「沒新聞」，是上游改了目錄結構。"
@@ -299,13 +405,22 @@ def main():
     adv_f  = dated_files(os.path.join(W, "adv",  "data"), lo, hi)
     pod_f  = dated_files(os.path.join(W, "pod",  "data"), lo, hi)
     cotd_f = dated_files(os.path.join(W, "cotd", "data"), lo, hi)
+    # 外資報告是**週頻**：7 天窗口裡最多一份，常常是零份（它有手動補發，週次會跳）。
+    # 零份不是失敗，但要說出來 —— 空的 res.txt 會讓賣方側的佐證檢查
+    # vacuously 通過，而那跟「這週券商沒東西」長得一模一樣。
+    res_f  = dated_files(os.path.join(W, "res",  "data"), lo, hi)
     bub    = jload(bp)
 
     adv_t, ncard, trunc = build_adv(adv_f)
     pod_t, nep, slim = build_pod(pod_f)
     bub_t       = build_bub(bub)
     cotd_t, nch = build_cotd(cotd_f)
-    for name, txt in (("adv", adv_t), ("pod", pod_t), ("bub", bub_t), ("cotd", cotd_t)):
+    res_t, nrep, nst = build_res(res_f)
+    if not res_f:
+        res_t = ("（本窗口內沒有外資報告週摘 —— 它是週頻且會手動補發，週次會跳。\n"
+                 "  這不是失敗，但**賣方側這一週沒有票**，共振計票要照這個事實算。）")
+    for name, txt in (("adv", adv_t), ("pod", pod_t), ("bub", bub_t),
+                      ("cotd", cotd_t), ("res", res_t)):
         open(os.path.join(W, f"{name}.txt"), "w", encoding="utf-8").write(txt)
 
     # 上一期資訊（site 的 index.json 與單期檔）
@@ -369,6 +484,8 @@ def main():
           f"- 節目 {len(pod_f)} 天／{nep} 集（summary 截斷 {slim} 字）→ pod.txt {len(pod_t)//1000}K",
           f"- 監控 history {len(bub.get('history',[]))} 筆 → bub.txt {len(bub_t)//1000}K",
           f"- 圖表 {len(cotd_f)} 天／{nch} 張 → cotd.txt {len(cotd_t)//1000}K",
+          (f"- 券商 {len(res_f)} 期／{nrep} 份／原句 {nst} 筆 → res.txt {len(res_t)//1000}K"
+           if res_f else "- 券商 **本窗口 0 期**（週頻且會手動補發）→ 賣方側這一週沒有票"),
           f"- 各庫最新：{'　'.join(f'{k} {v}' for k,v in latest.items())}",
           f"\n## 上一期：第 {prev['issue']:03d} 期（{prev['date']}）",
           f"- headline：{prev['headline']}",
@@ -411,6 +528,32 @@ def main():
                    + (f"｜期限 {c['deadline']}" if c.get("deadline") else "")]
     else:
         md += ["（無未結案帳目。本期若有可證偽的判斷，記得用 `calls.open` 登帳。）"]
+    # ── 賣方對帳：把到期的分析師主張攤開，逼本期裁決 ──
+    # 跟上面的訊號帳本是同一個機制、不同的帳：那本是匯流自己開的判斷，
+    # 這本是**券商說的**。匯流是唯一同時看得到主張與證據的地方，所以裁決歸這裡。
+    due, n_st_all, n_st_done = due_stances(os.path.join(W, "res"), today)
+    if due is None:
+        md += ["\n## ⚠️ 找不到外資報告的立場帳本",
+               "`res/data/stances.json` 不存在 —— 上游可能改了檔案位置。"
+               "**這跟「這週沒有到期的主張」是兩件事**，要寫進本期 `gaps`。"]
+    else:
+        md += [f"\n## 賣方對帳（帳本 {n_st_all} 筆，已裁決 {n_st_done} 筆，"
+               f"本期到期 {len(due)} 筆）"]
+        if due:
+            md += ["**逐筆裁決下列分析師主張**，寫進本期 `sections` 的 `verdicts` 節：",
+                   "結果三選一 —— 應驗／落空／**未定**。",
+                   "**`未定` 必須寫理由。** 沒有理由的未定就是"
+                   "「為了讓燈變綠而全部改判無法驗證」，那條機器擋不住，只有你守得住。"]
+            for x in due:
+                md += [f"- `{x['id']}`（{x.get('broker','')}／{x.get('date','')}／"
+                       f"到期 {x.get('due','')}）"
+                       f"｜主題：{x.get('theme','')}"
+                       f"\n      原句：{str(x.get('quote',''))[:180]}"
+                       f"\n      中譯：{str(x.get('quote_zh',''))[:120]}"]
+        else:
+            md += ["（本期沒有到期的分析師主張。**這不是「都判完了」** ——"
+                   f"帳本裡還有 {n_st_all - n_st_done} 筆在觀察中，只是還沒到期。）"]
+
     if thin:
         md += ["\n## ⚠️ 樣本偏薄"] + [f"- {t}" for t in thin]
     if not fresh:
@@ -428,6 +571,14 @@ def main():
                f"quadrant／{len(sk['quant']['dims'])} 層／{len(sk['quant']['triggers'])} 條 triggers），"
                "`date`／`issue`／`label`／`range`／`coverage` 也已填。",
                "你只要填標「（填：…）」的欄位與 `sections[].items`，**不要重打 `quant`**。"]
+
+    # `systems/convergence.py` 的 `build()` 讀 `work/stances.json`。
+    # **複製一份而不是叫它去讀 `work/res/data/`** —— work 的形狀是這支的對外契約，
+    # 讓下游去猜 clone 出來的目錄結構，等於把上游的目錄佈局變成第二個契約。
+    _sp = os.path.join(W, "res", "data", "stances.json")
+    if os.path.exists(_sp):
+        open(os.path.join(W, "stances.json"), "w", encoding="utf-8").write(
+            open(_sp, encoding="utf-8").read())
 
     out = "\n".join(md)
     open(os.path.join(W, "PREP.md"), "w", encoding="utf-8").write(out)
