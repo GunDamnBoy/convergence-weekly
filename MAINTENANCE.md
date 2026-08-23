@@ -36,7 +36,8 @@ git push -u origin main
 
 1. 改 `AGENT_BRIEF.md`（規格）
 2. **只在流程或分支判斷改變時**才動排程 prompt，用
-   `mcp__scheduled-tasks__update_scheduled_task` 同步（taskId：`convergence-weekly`）。
+   `mcp__claude-code-remote__update_trigger` 同步
+   （**trigger_id：`trig_019G2kX2G2QLbdYDYEt4PWkf`**）。
    ⚠️ `prompt` 是**整份取代，不是局部編輯**——送出前確認所有段落都帶上了，漏掉的段落等於刪除。
 3. 在 `CHANGELOG.md` 加變更紀錄——**逐檔改動、被否決的選項、驗證方式、回溯要點**
    四項都要寫（模板見該檔第 4 節任一版）。收工前跑 `python3 healthcheck.py --metrics`
@@ -47,11 +48,13 @@ git push -u origin main
    ⚠️ `build_issue.py` 不在組內——已凍結在第 001 期，刻意不追著改。
 5. 事故經過與被否決的選項寫本檔第 6 節
 
-⚠️ **維護時讀不到實際生效的 prompt。**
-排程任務的內容存在 `~/Documents/Claude/Scheduled/convergence-weekly/SKILL.md`，
-那是受保護目錄，Cowork 掛不進來，所以**無法對本檔第 3 節與實際生效內容做逐字 diff**。
-唯一的防線是紀律：**改 prompt 一定要在同一輪同時改本檔第 3 節與 `update_scheduled_task`，
-兩邊貼同一份文字。** 只改一邊，下次維護沒有任何工具查得出來。
+✅ **v2 起維護時讀得到實際生效的 prompt。**
+`mcp__claude-code-remote__list_triggers` 會回傳完整的 prompt 內容，
+所以本檔第 3 節與實際生效內容**可以逐字 diff**。
+
+> 舊版這裡寫著「那是受保護目錄、無法 diff，唯一的防線是紀律」——
+> **那個說法是錯的，而錯誤的代價是把唯一可機械驗證的防線當成不可能而放棄。**
+> 改 prompt 之後跑一次 `list_triggers` 對一下，不要只靠紀律。
 
 **改完務必自問一次：這條規則排程執行時讀得到嗎？**
 排程每次觸發都是全新 session，只讀 `AGENT_BRIEF.md` 與 prompt 本身。
@@ -61,11 +64,17 @@ git push -u origin main
 
 ## 3. 排程 prompt（整份取代用）
 
-> 建立方式：`mcp__scheduled-tasks__create_scheduled_task`，taskId `convergence-weekly`，
-> cron **`30 21 * * 0`**。
+> 建立方式：`mcp__claude-code-remote__create_trigger`，
+> trigger_id **`trig_019G2kX2G2QLbdYDYEt4PWkf`**，
+> cron **`0 13 * * 1`（UTC）＝ 週一 21:00 台北**。
 >
-> ⚠️ **這個 cron 是本地時間（台北），不是 UTC。**
-> v0.4 之前文件把它寫成 UTC 的 13:30 版本，那是錯的——照抄會排到台北**週一下午**。
+> ⚠️ **這個工具的 cron 是 UTC，不是本地時間** —— 跟舊工具相反。
+> v1 用的 `mcp__scheduled-tasks__*` 吃本地時間，所以舊文件寫 `30 21 * * 0`；
+> **換了工具就換了時區慣例**，照抄舊字串會排到台北週一凌晨。
+>
+> ⚠️ **v2 從週日改到週一，理由是量出來的**：外資報告週摘週日 23:00 才發布、
+> 泡沫監控的每週質化覆核是週一 09:00 —— 舊時點跑，這兩樣讀到的都是上一週的版本。
+> 詳見 `AGENT_BRIEF.md` §2。
 > 可用既有排程印證：`advisory-dashboard-daily` 的時刻欄位是「7 點 30 分」，
 > 對應的就是台北 07:30 而非 UTC 07:30。
 > （這裡刻意不寫出那個錯誤的 cron 字串，因為 `healthcheck.py` 會把文件裡出現的

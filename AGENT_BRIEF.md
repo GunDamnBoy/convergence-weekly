@@ -1,5 +1,19 @@
 # 主題匯流訊號報 · AGENT_BRIEF
 
+> ## v2（2026-08-23）：**五庫、六節、走 kb-core 的發布軌、週一晚上執行**
+>
+> 這一版改了六件事，每一件在下面對應的節裡都有完整說明；這裡只列清單，
+> **不重複內容**（一個規格只能有一個家）：
+>
+> | 變更 | 節 |
+> |---|---|
+> | 第五庫：外資報告週摘，**獨立的第四票**，共振門檻仍是三方 | §0、§1、§5 |
+> | 新增第三節「賣方對帳」：裁決到期的分析師主張 | §3、§4 |
+> | 發布改走 kb-core 的 `tools/publish.py`（閘門→守衛→推送），dashpush 退場 | §3、§4 |
+> | 索引鍵 `issues` → `days` | §3 |
+> | 執行時點週日 21:30 → **週一 21:00** | §2 |
+> | 檢查搬進 `kb-core/checks/convergence.py`，`verify.py` 退場 | §4 |
+>
 > **這份是規格，含完整的執行管線定義（第 4 節）。**
 > 排程任務的 prompt 是這份管線的**執行骨架**——只放順序與分支判斷，
 > 細節（門檻、字數、格式、禁令）一律回這份查。見 `MAINTENANCE.md` 第 3 節。
@@ -17,6 +31,7 @@
 | 節目知識庫 | 敘事．每日．專業討論 | 聰明人在想什麼 | 獨立 |
 | AI 泡沫監控 | **量化**．每交易日．自動抓取 | 客觀狀態是什麼 | 獨立（不看新聞） |
 | 每日五圖 | **量化重製**．每日．自行製圖 | 敘事講的事，數字是多少 | **選題與投顧同源** |
+| 外資報告週摘 | **賣方研究**．每週＋手動．券商 PDF | 分析師對客戶說了什麼 | 獨立（上游是券商 PDF） |
 
 > ⚠️ **每日五圖不是第四個獨立來源。**
 > 它的 `about.upstream[0]` 就是 `advisory-knowledge-hub` 的當日檔——選題是從投顧庫挑出來的。
@@ -26,6 +41,20 @@
 > 它真正的價值在另一半：**圖表的數字是自行從 Yahoo／FRED 重製的**，
 > 所以它是**量化側的第二個裁判**——把敘事講的模糊說法逼成一個可回查的數字
 > （「油價崩了」→ 自 3/31 高點 −32.9%）。角色定位與計票規則見第 5 節。
+
+> **外資報告週摘是獨立的第四票，但門檻沒有提到四方。**
+> 它的上游是券商 PDF，與 Google News、與投顧的來源都不同源，所以計票上獨立。
+> 但分析師寫的跟新聞報的常常是同一批事件，四方到齊會罕見到不能用；
+> 而三方的價值本來就在「量化與敘事各自到達同一結論」。
+> **多一個獨立來源是讓三方更容易被驗證，不是讓門檻更高。**
+>
+> 它還帶來一件別的庫沒有的東西：`stances.json` 是一份**帶到期日的可證偽帳本**，
+> 而在匯流接手之前沒有任何流程在判它們。裁決歸這裡 ——
+> **匯流是唯一同時看得到「主張」與「證據」的地方**。見第 3 節「賣方對帳」。
+>
+> ⚠️ **不要重讀那 23 份報告。** 它的 `crosscut` 已經在做跨券商的共振與分歧分析，
+> 匯流讀那份綜合、把它當一票。重做等於兩個系統對同一批 PDF 做同一件事，
+> 而下游那次還看得比較少。
 
 把它們疊起來才看得到的訊號有四種，這是本系統唯一的產出：
 
@@ -51,7 +80,7 @@
 
 ## 1. 資料來源
 
-四庫皆為公開 GitHub repo，**用 `git clone --depth 1` 取得，不要用 WebFetch 逐檔抓**
+**五庫**皆為公開 GitHub repo，**用 `git clone --depth 1` 取得，不要用 WebFetch 逐檔抓**
 （單日檔 100–300KB，WebFetch 會用小模型摘要，資料會失真）。
 
 ```
@@ -59,13 +88,21 @@ https://github.com/GunDamnBoy/advisory-knowledge-hub     → data/YYYY-MM-DD.jso
 https://github.com/GunDamnBoy/podcast-knowledge-digest   → data/YYYY-MM-DD.json、data/index.json
 https://github.com/GunDamnBoy/ai-bubble-monitor          → data.json（單檔，含 history 日序列）
 https://github.com/GunDamnBoy/chart-of-the-day           → data/YYYY-MM-DD.json、data/index.json
+https://github.com/GunDamnBoy/broker-research-digest     → data/YYYY-MM-DD.json、data/stances.json
 ```
+
+> **外資報告要吃 `crosscut` 與 `stances`，不要吃 `summary`。**
+> 2026-08-23 量測（當期 23 份）：`summary` 合計 106,449 字元，
+> `stances` 81 筆的原句＋中譯只有 16,352（**15%**），而後者是逐字、帶頁碼、
+> 唯一可證偽的那一層。`prepare.py` 的 `build_res` 照這個規格做。
 
 > **架構優勢：取資料這一段全部公開，不需要本機、不需要自建轉錄管線。**
 > 這與既有兩套系統不同（那兩套要讀本機逐字稿／要跑抓取），維護負擔低很多。
-> **但發布這一段仍然依賴本機**：用 `device_commit_files` 寫回 `~/convergence-weekly`，
-> 再由既有的 launchd agent `com.kenny.dashpush` 每 180 秒 push 上去。
-> 連不到本機時的退路見第 4 節第 6 步。
+> **但發布這一段仍然依賴本機**：草稿寫進 `~/outbox/convergence/`，
+> 由 launchd agent `com.kenny.kbpublish.convergence`（每 60 秒）跑
+> `kb-core/tools/publish.py`：閘門 → 不可改寫守衛 → 原子寫入 → 索引對帳 → rebase → push → 回執。
+> **dashpush 已退場**，「檔案一進 `data/` 就等於發布」那條約束連同它一起消失 ——
+> 新軌是**閘門過了才寫、寫了才推**。連不到本機時的退路見第 4 節第 6 步。
 
 ### 1.1 四庫的資料結構
 
@@ -137,8 +174,13 @@ index.json: title, updated, days[{date,weekday,headline,charts,themes[],slots[]}
 
 ## 2. 時間窗口與節奏
 
-- 每週日台北 **21:30** 執行（投顧與圖表庫早上更新、節目庫凌晨更新，排在晚上確保四庫當天的檔都到齊）。
-  排程 cron `30 21 * * 0`，**本地時間、非 UTC**（詳見 `MAINTENANCE.md` 第 3 節的警語）。
+- 每週一台北 **21:00** 執行，排程 cron `0 21 * * 1`，**本地時間、非 UTC**
+  （詳見 `MAINTENANCE.md` 第 3 節的警語）。
+  > **v2 從週日 21:30 改過來，理由是量出來的**：兩個最有價值的新輸入都在舊時點之後才到 ——
+  > 外資報告週摘**週日 23:00** 發布（晚 1.5 小時）、泡沫監控的每週質化覆核是
+  > **週一 09:00**（晚 11.5 小時）。照舊時點跑，本期永遠讀到上一週的券商研究、
+  > 以及還沒覆核的量化底盤。新時點讓五套當天／當週的檔全部到齊，
+  > 代價是「上週回顧」晚一個工作日交付。
 - **敘事側**（投顧、節目、每日五圖）取過去 7 個日曆天；
   **量化側**取 `history` 全部（長度以當期實際為準），
   「本期變動」＝**頂層 `dims` 現值 − `history` 中與現值同一組鍵的最早一筆**。
@@ -193,13 +235,14 @@ convergence-weekly/
 │                          排程只跑它，不要自己寫摘要程式，也不要讀它的原始碼
 ├─ make_index.py         ← 手動維護工具（重建 index 條目用）。**不在每週流程內**——
 │                          v1.0 起 index 由 publish.py 的 build_entry 組
-├─ publish.py            ← **發布閘門（v1.0 起唯一的發布路徑）**：草稿 → verify 全過
-│                          → 才原子寫入 data/（單期檔＋index＋calls 帳本＋upstream 指紋）。
-│                          內建「歷史永不改寫」守衛——dashpush 每 180 秒無條件推送，
-│                          檔案一進 data/ 就等於發布，所以檢查必須在寫入之前
-├─ cwlib.py              ← 共用函式（baseline／schema／is_lit／指紋／原子寫入）。
-│                          「同架構最早一筆」曾寫了四遍、「是不是 v2」有五種寫法——
-│                          規則只改這一份
+├─ ~~publish.py~~        ← **v2 退場。** 發布改走 kb-core 的 `tools/publish.py`
+│                          （閘門 → 不可改寫守衛 → 原子寫入 → 索引對帳 → rebase → push → 回執）
+├─ ~~cwlib.py~~          ← **v2 退場**（共用函式隨 publish／verify 一起走）
+├─ ~~verify.py~~         ← **v2 退場。** 檢查在 `kb-core/checks/convergence.py`
+├─ ~~make_index.py~~     ← **v2 退場**（索引由 kb-core 的 publish 組）
+├─ ~~healthcheck.py~~    ← **v2 退場**（哨兵由 kb-core 的 sentinel 負責）
+│                          > 這五支還在 repo 裡，但**不要再跑它們** ——
+│                          > 它們讀的是舊的 `issues` 索引鍵，跑起來會出錯，那是預期的
 ├─ verify.py             ← **發布前檢查**（由 publish.py 呼叫，也可單獨跑）
 ├─ healthcheck.py        ← 維護用的唯讀健康檢查（跑在維護時，不在產出流程裡）
 ├─ AGENT_BRIEF.md        ← 本檔（規格）
@@ -217,13 +260,38 @@ convergence-weekly/
 | # | id | 節名 | 規則 |
 |---|---|---|---|
 | 零 | —（外殼寫死） | 量化底盤 | 不是新聞，是這段期間的客觀狀態。由 `quant` 驅動 |
-| 一 | `resonance` | 三方共振 | 三個**獨立**來源同時指向。量化佐證不得取自 `events`；**投顧與圖表計為同一票** |
+| 一 | `resonance` | 三方共振 | 三個**獨立**來源同時指向（v2 起共有**四個**聲音可選）。量化佐證不得取自 `events`；**投顧與圖表計為同一票** |
 | 二 | `divergence` | 關鍵背離 | **必須給裁判方法**：用什麼數字、跨過什麼門檻就知道哪一邊對。**優先引用 `triggers` 裡已定義的門檻**，見下方 |
-| 三 | `taiwan` | 台股 | 閱讀切面。各庫講台股時常在不同層次，把層次差寫出來 |
-| 四 | `charts` | **圖表側寫** | 閱讀切面。**敘事講的事，圖表算出來是多少**——見下方規則 |
-| 五 | `single` | 單邊訊號 | **只標記不判斷**。用 `list[]` 而非 `evidence[]`，但一樣要逐字 |
-| 六 | —（外殼寫死） | 下週該盯什麼 | 由 `watch[]` 驅動。每條可觀察、可證偽 |
-| 七 | —（外殼寫死） | 回饋給來源系統 | 由 `feedback[]` 驅動。選填，沒有就不出現 |
+| 三 | `verdicts` | **賣方對帳**（v2 新增） | 當週到期的分析師主張逐筆裁決。機器讀的那一份在**頂層 `rulings[]`**，這一節是它的人讀版本 |
+| 四 | `taiwan` | 台股 | 閱讀切面。各庫講台股時常在不同層次，把層次差寫出來 |
+| 五 | `charts` | **圖表側寫** | 閱讀切面。**敘事講的事，圖表算出來是多少**——見下方規則 |
+| 六 | `single` | 單邊訊號 | **只標記不判斷**。用 `list[]` 而非 `evidence[]`，但一樣要逐字 |
+| 七 | —（外殼寫死） | 下週該盯什麼 | 由 `watch[]` 驅動。每條可觀察、可證偽 |
+| 八 | —（外殼寫死） | 資料缺口回報 | 由 `feedback[]` 驅動，**v2 收窄成只寫資料層的缺陷**（見下方） |
+
+`sections` 的 id 與順序鎖死為
+`resonance → divergence → verdicts → taiwan → charts → single`（**6 節**），
+由頂層 `schemaVer: "2"` 宣告。舊期沒有這個欄位，走 5 節或 4 節的舊組合。
+**判準是資料自己的宣告，不是日期** —— 日期門檻是一個「記得改」的東西，
+而忘記改的那次不會有徵兆。
+
+**第三節「賣方對帳」的規則：**
+
+- 資料在頂層 `rulings[]`：`{id, result, why}`。`id` 是 `stances.json` 的條目 id。
+- `result` 用外資報告 `research/anchors.json` 的 `status_vocab`：
+  **應驗／部分應驗／落空／無法驗證**，加上匯流自己的 **延後**。
+  > **詞彙不是自己訂的。** `status_vocab` 跟 podcast 的 `observations.json` 逐字相同，
+  > anchors 寫著理由：「同一個判斷的詞彙只有一套，不然兩個庫的『部分應驗』
+  > 會慢慢變成兩件事」。
+- **每一筆都要寫 `why`。** 裁決沒有理由就不是裁決。
+- 「延後」不寫回帳本，那幾筆維持 `觀察中`、下一期照樣被撈出來。
+  **「還判不了」不該長得像「判完了」。**
+- **到期而完全沒被碰的，是安靜地掉的** —— 判不了就寫「延後」加理由，不要略過。
+
+**第八節「資料缺口回報」v2 收窄：**
+只寫「某庫的資料有問題」（欄位缺、時間戳停住、數字對不上）。
+判斷類的回饋 v2 有了機械管道（裁決寫回 `stances.json`），不再寫這裡。
+理由：v1 三期共 11 條建議，**沒有任何機制知道它們有沒有被採納**。
 
 **第二節「關鍵背離」的裁判方法要優先引用 `triggers`：**
 
@@ -336,8 +404,8 @@ convergence-weekly/
 
 ```jsonc
 {
-  "updated":"ISO8601 +08:00", "updatedLabel":"8/3 21:30", "count":N,
-  "issues":[{                     // 依日期由新到舊
+  "updated":"ISO8601 +08:00", "updatedLabel":"8/24 21:12", "count":N,
+  "days":[{                       // **v2 起是 `days` 不是 `issues`** ——                     // 依日期由新到舊
     "date":"2026-08-09","issue":2,"label":"...","short":"8/9","headline":"...",
     "quantVer":"v2",                                    // v2 必填。外殼靠它決定哪幾期能連成一條線
     "composite":66.6,"dims":{"L1":65.5,"L2":70.5,"L3":36.1},
@@ -472,7 +540,7 @@ python3 site/prepare.py --work work --site site --emit-skeleton
 ### 第 5 步：寫草稿並發布（一條指令）
 
 1. **以 `work/skeleton.json` 為底**寫草稿到 **`work/issue.json`**（不要直接寫 `data/`——
-   dashpush 每 180 秒無條件推送，寫進 `data/` 就等於發布，檢查必須在那之前）。
+   那是閘門的另一邊，直接寫等於繞過整條檢查）。
    骨架的 `quant` **數值欄位**已由 `prepare.py` 從監控庫抄好，**直接沿用、不要重打**——
    那些是機械抄寫，手打既慢又會抄錯（第 002 期就是這樣把 `watch` 的
    trigger id 標成 indicator id）。
@@ -499,26 +567,47 @@ v1.0 起 `verify.py` 由 `publish.py` 在**暫存區**呼叫，跑在寫入 `dat
 > `cotd.txt`**。三份敘事語料**全有或全無**，缺任一整批跳過並回 `exit 2` 黃燈——
 > 黃燈不是通過，publish 一律當失敗。
 
-它檢查六大類（詳目見 `verify.py` docstring，兩份同步維護）：
+> **v2 起檢查住在 `kb-core/checks/convergence.py`，不是本 repo 的 `verify.py`。**
+> 它們跟另外五套系統共用同一個 `Check` 介面、同一份 `checks.lock`、同一個
+> `verify.py --selftest`（每條檢查都要有一個**一定會讓它非 PASS 的 fixture**
+> 與一個**剛好還在合格側的 near_miss**）。組檔中途想看結果走
+> `kb-core/tools/convergence_verify.py`（只讀不寫）。
+> **本 repo 的 `verify.py`／`publish.py`／`cwlib.py`／`make_index.py`／
+> `build_issue.py`／`healthcheck.py` 全部退場，不要再跑它們。**
+
+它檢查九大類（詳目見 `checks/convergence.py`，那裡是唯一的正本）：
 **A 結構**（必備欄位、章節 id 與順序、**每節至少一個 item**、值域 0–100）
 **B index 快照值層級對帳**（composite／dims／twHeat／stage／quadrant／trigLit 逐欄等值）
 **C 敘事佐證**（**逐來源**逐字回查、**全片段**、含 `list[]`、日期格式 `M/D`、
 **同段佐證不得跨 item 重複**、共振來源獨立性——投顧＋圖表計一票）
 **D 量化佐證**（`<code>欄位名</code>` 存在、**數字逐個對回監控庫**、不得取自 `events`）
 **E 量化對帳**（現值與變動 vs `history` 不跨改版、quant 抄寫欄位 vs 監控庫逐欄 diff、觸發器對帳）
-**F watch 的 trigger 綁定**（提到 id 必須 `<code>` 正確標）
+**F watch 的 trigger 綁定**（提到 id 必須 `<code>` 正確標；綁 indicator 而**確實沒有
+對應 trigger** 的出 WARN 不出 FAIL —— 那是規格允許的次選）
+**G 賣方裁決的完整性**（當週到期的每一筆都要處理、result 在 `status_vocab` 值域、
+每一筆都要有理由、不重複結案）
+**H `gaps` 非空**（空著跟「五庫都很健康」長得一模一樣，而五庫的日期本來就不會對齊）
+**I 佐證來源封閉集合**（監控／投顧／節目／圖表／**券商**五個值）
 
 > ⚠️ **不要自己先逐條回查一遍再等 publish 跑它。** 做兩遍等於白花一次，
 > 而且手動那次還會漏掉 `list[]`。直接跑 publish，看報告修。
 
 ### 第 6 步：發布與交付
 
-1. 用 `device_commit_files` 寫回本機 `~/convergence-weekly`，
-   交給 `com.kenny.dashpush`（每 180 秒）自動推送
-   > ⚠️ **不要對本機的 `~/convergence-weekly` 跑任何 git 指令，`git status` 也不行。**
-   > `com.kenny.dashpush` 每 180 秒會自己 commit＋push，你跑 git 會留下
-   > `.git/index.lock` 把它擋住，之後就再也推不上去。
-   > 沙箱裡 clone 出來的複本要怎麼跑 git 都可以，這條只針對本機那一份。
+1. 用 `device_commit_files` 把草稿寫進 **`~/outbox/convergence/<日期>.draft.json`**，
+   由 `com.kenny.kbpublish.convergence`（每 60 秒）跑
+   `kb-core/tools/publish.py` 發布。回執在 `~/outbox/convergence/<日期>.receipt.json`，
+   **exit 0 才算上線**。
+   > **不要直接寫 `data/`。** 那是 v1 的形狀（dashpush 無條件推送，所以檢查必須
+   > 在寫入之前）。新軌是閘門過了才寫 —— 直接寫 `data/` 等於繞過整條閘門。
+   > **`work/` 底下的語料與 `bub/data.json` 一定要在**，缺了 `build()` 會 raise、
+   > 回執是 BAD_INPUT：空語料會讓每一條逐字比對的檢查 vacuously 通過。
+2. **裁決寫回**：跑
+   `kb-core/tools/convergence_rulings_apply.py <本期 JSON> --apply`，
+   把 `rulings[]` 的終局裁決寫進 `broker-research-digest/data/stances.json` 的
+   `status`／`verdict`／`verdictDate`。**「延後」不寫回** —— 那幾筆維持觀察中，
+   下一期照樣會被撈出來。外資報告下一輪重建會保留判決
+   （`build_stances` 的沿用保證，2026-08-23 實測 3/3 保留）。
 2. **連不到本機時的退路**：改用 `SendUserFile` 附上本期 JSON 與 `index.json`，
    並明確告知使用者需要手動放進 repo——不要靜靜地跳過發布
 3. 驗證線上狀態時**網址一定要帶 cache-buster**，
@@ -535,10 +624,14 @@ v1.0 起 `verify.py` 由 `publish.py` 在**暫存區**呼叫，跑在寫入 `dat
 - **量化佐證要附欄位名，而且要用 `<code>` 包住。**
   寫 `指標 <code>hyoas</code> = 2.84%、zone green、score 25.8`，
   不要寫「高收益債利差偏低」——前者可回查，後者不行。
-- **計票時投顧與圖表算同一票。**
-  「三方共振」要的是三個**獨立**聲音：敘事新聞側（投顧＋圖表，合計一票）、
-  節目側、量化側。每日五圖的選題取自投顧庫，所以「投顧在講＋圖表也在畫」是一票不是兩票。
-  `verify.py` 會對 `resonance` 節裡標了「共振」的 item 實際計算獨立聲音數，不足三個直接 FAIL。
+- **計票時投顧與圖表算同一票；券商是獨立的第四票。**
+  v2 起有**四個獨立聲音**：敘事新聞側（投顧＋圖表，合計一票）、節目側、量化側、**賣方側**。
+  每日五圖的選題取自投顧庫，所以「投顧在講＋圖表也在畫」是一票不是兩票；
+  外資報告的上游是券商 PDF，與新聞不同源，所以它獨立。
+  **但「三方共振」的門檻沒有跟著提到四方** —— 理由見第 0 節。
+  `checks/convergence.py` 的 `resonance_independent` 會對標了「共振」的 item
+  實際計算獨立聲音數，不足三個直接 FAIL。`VOICE` 表把投顧與圖表映到同一個 key，
+  **寫在程式裡而不只是文件裡** —— 前兩次證明了只寫在文件裡的規則會漂移。
 - **量化佐證只能取自 `indicators` / `dims` / `stage` / `tw`，絕對不能取自 `events`。**
   `events` 欄位本身就是 Google News。拿它當量化側證據，等於讓**同一則新聞**
   在投顧側算一次、在監控側再算一次，「三方共振」就是假的——
