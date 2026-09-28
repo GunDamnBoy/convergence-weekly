@@ -37,6 +37,10 @@
   {
    "id": "megaipo",
    "name": "OpenAI／SpaceX 巨型 IPO 完成"
+  },
+  {
+   "id": "sahm05",
+   "name": "Sahm Rule ≥0.50pp（失業率轉折）"
   }
  ],
  "indicators": [
@@ -64,12 +68,17 @@
   "weakcredit"
  ],
  "tw_items": [
+  "credit_turnover",
   "elec_rel",
+  "margin_keeprate",
+  "margin_mktcap",
   "odm_pe",
+  "short_ratio",
   "tsmc_200dma",
   "tsmc_52w",
   "tsmc_pe",
   "tsmc_weight",
+  "tw_daytrade",
   "tw_export",
   "tw_margin",
   "tw_rev",

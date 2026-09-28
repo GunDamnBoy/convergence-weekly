@@ -8,7 +8,10 @@
    "claim": "美債 10 年期在 2026-10-31 前不會升破 5%——本輪長端壓力集中在 30 年期的一級市場，不在 10 年期次級市場",
    "judge": "<code>y10_5</code> state 是否由 0 翻轉為 1",
    "deadline": "2026-10-31",
-   "status": "open"
+   "status": "miss",
+   "closed": "2026-09-21",
+   "closedIssue": 8,
+   "closeNote": "押「10 年期在 2026-10-31 前不會升破 5%」。門檻已被穿過：圖表庫自行重製的序列顯示 9/15 收 5.00%、9/16 收 5.01%，監控庫自己的 stage 敘述也寫入「10 年期美債殖利率於 09-15 升破 5%」。y10_5 仍為 0 只是因為它讀 09-17 的點值 4.94%。此外原判的機制也反了——今年以來 2 年期 +120bp、30 年期只有 +45bp 且近一個月 −2bp，壓力在前端不在長端。照裁判它還活著，照事實它已經輸了，本期照事實結案。"
   },
   {
    "id": "c003-2",
@@ -47,6 +50,198 @@
    "kind": "watch",
    "claim": "台股熱度 48.7 是被低估的：<code>tw_export</code> 一旦更新到 7 月數字，<code>twheat</code> 會上升",
    "judge": "<code>tw_export</code> 的 asof 離開 2026-05 之後，<code>twheat</code> 是否高於 48.7",
+   "deadline": "2026-10-31",
+   "status": "miss",
+   "closed": "2026-08-24",
+   "closedIssue": 4,
+   "closeNote": "裁判條件已滿足：tw_export 的 asof 由 2026-05 走到 2026-06（+48.0%），而 twheat 由 48.7 退到 44.4，是低於而非高於門檻。敗因是把熱度押在低分的基本面欄位上，而該指標主要由部位面欄位驅動。"
+  },
+  {
+   "id": "c004-1",
+   "opened": "2026-08-24",
+   "issue": 4,
+   "kind": "divergence",
+   "claim": "本輪是價格層冷卻而非融資層冷卻：<code>gsy150</code> 在 2026-10-31 前不會重新翻回 1",
+   "judge": "<code>gsy150</code> state 是否由 0 翻轉為 1；翻轉即為 miss",
+   "deadline": "2026-10-31",
+   "status": "open"
+  },
+  {
+   "id": "c004-2",
+   "opened": "2026-08-24",
+   "issue": 4,
+   "kind": "divergence",
+   "claim": "AI 的投入產出量級差在可觀察期間內仍停留在敘事層：<code>cloudrev</code> 在 2026-11-30 前不會跌破 +45%（現 +54.0%）",
+   "judge": "監控庫 <code>cloudrev</code> 欄位在 2026-11-30 前的值是否 <+45%",
+   "deadline": "2026-11-30",
+   "status": "open"
+  },
+  {
+   "id": "c004-3",
+   "opened": "2026-08-24",
+   "issue": 4,
+   "kind": "watch",
+   "claim": "台股熱度由部位面驅動而非基本面：在 <code>tw_margin</code> 的 20 日變化轉正之前，<code>twheat</code> 不會回到 48.7 以上",
+   "judge": "<code>tw_margin</code> 的 20 日變化與 <code>twheat</code> 的先後順序；若 <code>twheat</code> 在 <code>tw_margin</code> 轉正之前就回到 48.7 以上即為 miss",
+   "deadline": "2026-10-31",
+   "status": "open"
+  },
+  {
+   "id": "c005-1",
+   "opened": "2026-09-01",
+   "issue": 5,
+   "kind": "watch",
+   "claim": "台股熱度這一輪是槓桿驅動而非基本面驅動：<code>tw_margin</code> 的 score 會在兩期內由 98.9 回落到 80 以下，而 <code>tw_export</code> 的 score 不會升到 30 以上",
+   "judge": "監控庫 <code>tw_margin</code> 與 <code>tw_export</code> 兩個欄位的 score；本欄位無對應觸發器，門檻為本期自訂",
+   "deadline": "2026-10-31",
+   "status": "hit",
+   "closed": "2026-09-14",
+   "closedIssue": 7,
+   "closeNote": "條件本期成立：<code>tw_margin</code> 的 score 由第 005 期的 98.9、第 006 期的 82.2 退到本期 78.6，跌破第 006 期設定的 80 門檻，且未反彈回 90 以上，「槓桿鬆手」的讀法成立。注意這筆帳目因 kb-core 的 calls 折入缺陷從未落進 data/calls.json，本期仍送出結案，能否落帳取決於閘門。"
+  },
+  {
+   "id": "c005-2",
+   "opened": "2026-09-01",
+   "issue": 5,
+   "kind": "divergence",
+   "claim": "<code>l3</code> 本期的停滯是資料問題不是現實問題：<code>dnagap</code> 的 asof 在 2026Q3 財報揭露後會離開 2026Q2，且屆時 <code>dnagap</code> 不會收窄到 +30pp 以下",
+   "judge": "監控庫 <code>dnagap</code> 的 asof 與值；本欄位無對應觸發器，門檻為本期自訂",
+   "deadline": "2026-11-30",
+   "status": "open"
+  },
+  {
+   "id": "c005-3",
+   "opened": "2026-09-01",
+   "issue": 5,
+   "kind": "divergence",
+   "claim": "升息定價在期限內不會被拆掉：節目側的長端故事不會接管，圖表側算出的 2 年期強勢會延續——<code>y10_5</code> 在期限內不觸發，而 2 年減 3 個月不回落到零以下",
+   "judge": "<code>y10_5</code> state 是否由 0 翻轉為 1；輔以圖表庫重製的 2 年減 3 個月利差是否轉負",
+   "deadline": "2026-10-31",
+   "status": "open"
+  },
+  {
+   "id": "c006-1",
+   "opened": "2026-09-07",
+   "issue": 6,
+   "kind": "divergence",
+   "claim": "半導體價格層是甩尾不是熄火：<code>gsy150</code> 的 value 在期限內不會跌破 +100%（現 +123%），且 <code>volchg</code> 不會回落到 +3pp 以下（現 +6.0pp）",
+   "judge": "監控庫 <code>gsy150</code> 的 value 與 <code>volchg</code> 的值；<code>gsy150</code> 的 state 在期限內不翻轉為 1 也不構成 miss，門檻為本期自訂",
+   "deadline": "2026-10-31",
+   "status": "open"
+  },
+  {
+   "id": "c006-2",
+   "opened": "2026-09-07",
+   "issue": 6,
+   "kind": "watch",
+   "claim": "升息定價的地基是單月非農，但它撐得過 9 月非農：圖表庫重製的 2 年期減 3 個月國庫券利差到 2026-10-16 不會收在 0.40 個百分點以下（現 0.61）",
+   "judge": "圖表庫自行重製的 2 年期減 3 個月利差序列；無對應觸發器，門檻為本期自訂。輔以 <code>sahm05</code> 的下一個讀數",
+   "deadline": "2026-10-16",
+   "status": "open"
+  },
+  {
+   "id": "c006-3",
+   "opened": "2026-09-07",
+   "issue": 6,
+   "kind": "verdict",
+   "claim": "日銀 9 月會議不升息，且會後聲明的理由不會歸到通膨——野村對、高盛的提前錯",
+   "judge": "日銀 9 月政策會議的決議與聲明；無對應觸發器（<code>policy_gap</code> 只量美國）",
+   "deadline": "2026-09-30",
+   "status": "open"
+  },
+  {
+   "id": "c007-1",
+   "opened": "2026-09-14",
+   "issue": 7,
+   "kind": "divergence",
+   "claim": "<code>gsy150</code> 這次點亮是後照鏡：它的 value 會在 2026-10-31 前跌回 +150% 以下（現 +158%），而同期 <code>soxmom</code> 不會回到 0 以上（現 -14pp）",
+   "judge": "監控庫 <code>gsy150</code> 的 value 與 <code>soxmom</code> 的值。兩個條件都成立為 hit；<code>soxmom</code> 先回正而 <code>gsy150</code> 維持 +150% 以上為 miss。門檻為本期自訂，<code>gsy150</code> 的 state 翻轉與否不單獨構成裁決",
+   "deadline": "2026-10-31",
+   "status": "open"
+  },
+  {
+   "id": "c007-2",
+   "opened": "2026-09-14",
+   "issue": 7,
+   "kind": "divergence",
+   "claim": "本輪能源漲價是單一供給事件而不是需求端通膨，花旗那一側對：圖表庫重製的銅 ETF 一個月報酬在 2026-11-30 前不會回到 +5% 以上（現 −2.59%），且 <code>cpi4</code> 不翻轉",
+   "judge": "圖表庫自行重製的銅 ETF 一個月報酬序列（無對應觸發器，門檻為本期自訂）＋ <code>cpi4</code> 的 state。銅先回到 +5% 以上即為 miss",
+   "deadline": "2026-11-30",
+   "status": "open"
+  },
+  {
+   "id": "c007-3",
+   "opened": "2026-09-14",
+   "issue": 7,
+   "kind": "watch",
+   "claim": "台股熱度的退勢會延續：<code>twheat</code> 在 2026-10-31 前不會回到 48.7 之上（現 44.3），因為指數層級沒有第二個引擎——台積電仍在 7/31 基期以下、<code>odm_pe</code> 只有 13.3×",
+   "judge": "監控庫 <code>twheat</code> 的值（無對應觸發器，門檻沿用 c003-5 的同一條 48.7 基準線以利對照）",
+   "deadline": "2026-10-31",
+   "status": "open"
+  },
+  {
+   "id": "c008-1",
+   "opened": "2026-09-21",
+   "issue": 8,
+   "kind": "divergence",
+   "claim": "美債 10 年期會在 2026-10-31 前再度收在 5% 之上，而且這次會被監控庫取樣到：y10_5 由 0 翻轉為 1",
+   "judge": "<code>y10_5</code> state 是否由 0 翻轉為 1",
+   "deadline": "2026-10-31",
+   "status": "hit",
+   "closed": "2026-09-28",
+   "closedIssue": 9,
+   "closeNote": "押 10 年期在 10/31 前再度收在 5% 之上且被監控庫取樣到。y10_5 本期 value 5.18%、asof 2026-09-24、state 由 0 翻為 1。"
+  },
+  {
+   "id": "c008-2",
+   "opened": "2026-09-21",
+   "issue": 8,
+   "kind": "watch",
+   "claim": "gsy150 在 2026-12-31 前不會再度點亮：+139% 的 24 個月回望在 2024 年第四季低基期滾出去之後只會更低",
+   "judge": "<code>gsy150</code> state 是否由 0 翻轉為 1；翻轉即為 miss",
+   "deadline": "2026-12-31",
+   "status": "miss",
+   "closed": "2026-09-28",
+   "closedIssue": 9,
+   "closeNote": "押 gsy150 在年底前不會再點亮。本期 +156%、state 1——一週 +11.69% 的費半反彈就把 24 個月回望推回門檻之上，上期低估了單週修復對回望值的影響。"
+  },
+  {
+   "id": "c008-3",
+   "opened": "2026-09-21",
+   "issue": 8,
+   "kind": "divergence",
+   "claim": "ccc12 會在 2026-12-31 前翻轉為 1：CCC 10.76%、三個月 +130bp，且 CCC 減 BB 已在近三年第 99.5 分位",
+   "judge": "<code>ccc12</code> state 是否由 0 翻轉為 1",
+   "deadline": "2026-12-31",
+   "status": "open"
+  },
+  {
+   "id": "c008-4",
+   "opened": "2026-09-21",
+   "issue": 8,
+   "kind": "watch",
+   "claim": "台股熱度 twheat 在 2026-10-31 前不會回到 48.7 之上",
+   "judge": "監控庫 <code>twheat</code> 欄位是否高於 48.7",
+   "deadline": "2026-10-31",
+   "status": "open"
+  },
+  {
+   "id": "c009-1",
+   "opened": "2026-09-28",
+   "issue": 9,
+   "kind": "verdict",
+   "claim": "美債 10 年期在 2026-10-31 仍維持在 5% 之上：壓力在實質利率與前端，不會因油價回落而自己解除，y10_5 到期時仍為 1",
+   "judge": "<code>y10_5</code> 在 2026-10-31 的 state 是否仍為 1；翻回 0 即為 miss",
+   "deadline": "2026-10-31",
+   "status": "open"
+  },
+  {
+   "id": "c009-2",
+   "opened": "2026-09-28",
+   "issue": 9,
+   "kind": "divergence",
+   "claim": "只要 y10_5 維持 1，gsy150 會在 2026-10-31 前再翻回 0：本次點亮是一週修復推過 24 個月回望門檻，不是新高",
+   "judge": "<code>gsy150</code> 是否在 2026-10-31 前由 1 翻回 0；到期仍為 1 即為 miss",
    "deadline": "2026-10-31",
    "status": "open"
   }
