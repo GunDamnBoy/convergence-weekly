@@ -36,6 +36,7 @@
 
 | 日期 | 版本 | 一句話 | 動到的檔案 | 類型 | 收工 commit |
 |---|---|---|---|---|---|
+| 2026-10-05 | **v2.1.1** | PREP 賣方對帳的提示詞彙改回閘門那一套（去掉「未定」）；v2.1 原始檔補提交 | `prepare.py` `CHANGELOG` `MAINTENANCE`＋kb-core `checks/convergence.py`（兩行提示文字） | 修正 | v2.1 原始檔：`8bfd666`；本版待手動提交 |
 | 2026-09-29 | **v2.1** | 投顧來源改回現役 repo；帳本與指紋基準回到發布軌；骨架吐六節；brief／MAINTENANCE／排程 prompt 對齊 v2 | `prepare.py` `AGENT_BRIEF` `MAINTENANCE` `CHANGELOG` `data/calls.json` `data/index.json`（008 errata）＋kb-core `kbcore/system.py` `tools/publish.py` `systems/convergence.py` `skills/convergence/SKILL.md` `skills/maintain/convergence/*`＋排程 prompt | 修正＋架構 | data：`f8d9408`；原始檔待手動提交 |
 | 2026-08-23 | **v2**（事後追記） | 五庫（加外資報告週摘）、六節（加賣方對帳）、發布改走 kb-core、週一 15:00 | 見 brief 開頭 v2 表；本檔當時未記 | 架構 | — |
 | 2026-08-17 | **v1.0.1** | 以 writing-for-agents 六槓桿審 brief 與排程 prompt，先修 5 處會過期的抄本與指錯的指標 | `AGENT_BRIEF` `MAINTENANCE` `prepare.py` ＋排程 prompt | 修正 | `355e02e0`＋ |
@@ -186,6 +187,31 @@ v2 把發布從本 repo 的 `publish.py` 搬到 kb-core。舊 `publish.py` 除�
 ---
 
 ## 4. 各版本詳述
+
+### v2.1.1 — 2026-10-05 · 修正
+
+**動機**：第 010 期排程輪次（10/5 15:00）在來源 grep 停下——v2.1 的 `prepare.py` 等四檔
+9/29 改完沒提交，GitHub 上仍指 `advisory-knowledge-hub`（又是 CHANGELOG 3.2 的同類：
+修正落在排程看不到的地方）。同一輪發現 PREP 的賣方對帳段叫寫草稿的人「三選一：應驗／落空／未定」，
+與 brief §3 第三節、閘門 `RESULTS` 的五值不同——照 PREP 寫會被閘門退件。
+
+**逐檔改動**
+
+- 使用者手動提交 v2.1 四檔（`8bfd666`）。
+- `prepare.py`：賣方對帳提示改為 `rulings[]`＋`verdicts` 節、五值（應驗／部分應驗／落空／無法驗證／延後）、
+  每筆必寫 `why`、「延後」與「無法驗證」的差別；加註解指向正本。
+- kb-core `checks/convergence.py`：`_verdicts_complete` docstring 與到期未裁決的錯誤訊息，「未定」→「延後」
+  （`RESULTS` 本身早已正確，只有提示文字漂移）。
+
+**被否決的選項**
+
+- **在 PREP 內把五值寫成從 `checks.convergence.RESULTS` import**：`prepare.py` 跑在 clone 下來的
+  site 目錄，執行時讀不到 kb-core；硬接會讓備料多一個依賴。改為註解指向正本。
+
+**驗證方式**：兩檔 `py_compile`；kb-core `report.selftest()` 回 `[]`；新 `prepare.py` 在 `/tmp` 實跑 exit 0：
+`adv.txt` 147,033 bytes（修正前 0）、無「樣本偏薄」、賣方對帳段出現新文字、骨架 `schemaVer:"2"` 六節。
+
+**回溯要點**：兩處都是提示文字，退回不影響閘門判定，只會讓草稿作者照錯的詞彙寫。
 
 ### v2.1 — 2026-09-29 · 修正＋架構
 
