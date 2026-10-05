@@ -24,7 +24,7 @@
      仍標「（填：…）」——那幾欄是判斷不是抄寫。
   4. 印出 PREP.md 到 stdout——排程主線只需要讀這份與摘要層，不必碰任何原始 JSON
 
-exit code：0 正常；3 = 四庫全部沒有比上一期更新的資料（依規格 §2.1 不應產期）
+exit code：0 正常；3 = 五庫全部沒有比上一期更新的資料（依規格 §2.1 不應產期）
 """
 import json, os, sys, re, ast, subprocess, argparse, datetime as dt, zoneinfo
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -32,7 +32,11 @@ from cwlib import (baseline, dim_ids, schema_ver, is_lit, zone_label,
                    upstream_fingerprint, diff_fingerprint, need)
 
 REPOS = {
-    "adv":  "https://github.com/GunDamnBoy/advisory-knowledge-hub",
+    # **系統 id 是 advisory-knowledge-hub，repo 是 advisory-rewrite —— 兩者不同。**
+    # 2026-09-29 才發現：同名的舊 repo 停在 2026-08-18、clone 照樣成功、只是窗口內
+    # 沒有檔，於是第 008、009 兩期都把「抓錯 repo」寫成了「投顧庫窗口內無檔」。
+    # 排程 prompt 第 1 步會 grep 這一行確認來源，改名時兩邊一起改。
+    "adv":  "https://github.com/GunDamnBoy/advisory-rewrite",
     "pod":  "https://github.com/GunDamnBoy/podcast-knowledge-digest",
     "bub":  "https://github.com/GunDamnBoy/ai-bubble-monitor",
     "cotd": "https://github.com/GunDamnBoy/chart-of-the-day",
@@ -287,7 +291,7 @@ def due_stances(res_dir, today, horizon=7):
     return due, len(items), done
 
 
-def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
+def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts, res_cov=None):
     """產出單期 JSON 骨架：所有能從資料推導的欄位全部填好。
 
     仍要填的是所有標「（填：…）」的欄位：headline／stamp／verdict／sections（含 lede
@@ -327,7 +331,8 @@ def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
     return {
         "date": str(today), "issue": issue_no,
         "label": f"第 {issue_no:03d} 期 · {today.year} 年 {today.month} 月 {today.day} 日",
-        "stamp": "（填：一句話定位本期，例如「四庫比對．第 N 期」）",
+        "schemaVer": "2",
+        "stamp": f"五庫比對．第 {issue_no:03d} 期",
         "range": {"quant": rng_q, "narrative": rng_n},
         "headline": "（填：一句話，要有觀點，不是主題標籤）",
         "coverage": [
@@ -335,6 +340,8 @@ def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
             {"k": "節目知識庫", "v": f"{len(pod_f)} 天 / {counts.get('ep',0)} 集"},
             {"k": "AI 泡沫監控", "v": f"history {len(h)} 筆 / {len(bub.get('indicators',[]))} 項指標"},
             {"k": "每日五圖", "v": f"{len(cotd_f)} 天 / {counts.get('chart',0)} 張"},
+            # 第五庫。2026-09-29 前骨架只吐四列，排程每期手補 —— 規格改了、骨架沒跟上。
+            {"k": "外資報告週摘", "v": res_cov or "0 期（本窗口無）"},
         ],
         "verdict": ["（填：段 1，必須表態）", "（填：段 2，上一期 watch 逐條驗收）",
                     "（填：段 3，本期唯一無可取代的發現）"],
@@ -356,10 +363,13 @@ def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
         },
         "sections": [
             {"id": i, "title": t, "lede": "（填）", "items": []}
+            # v2 六節，順序鎖死（brief §3.0）。2026-09-29 前這裡只有五節、缺 verdicts。
             for i, t in (("resonance", "一 · 三方共振"), ("divergence", "二 · 關鍵背離"),
-                         ("taiwan", "三 · 台股"), ("charts", "四 · 圖表側寫"),
-                         ("single", "五 · 單邊訊號"))
+                         ("verdicts", "三 · 賣方對帳"), ("taiwan", "四 · 台股"),
+                         ("charts", "五 · 圖表側寫"), ("single", "六 · 單邊訊號"))
         ],
+        # 賣方對帳的機器讀版本（brief §3.0）。本期 0 筆到期時就是空陣列，verdicts 節仍要一個說明 item。
+        "rulings": [],
         # ⚠️ 佔位字串裡刻意不寫真的 trigger id、也不放 <code>——
         # 否則 verify.py 第 5.6 項會把佔位當成「提到 trigger 卻標錯」而誤報。
         # 合法 id 清單在 PREP.md 的觸發器表。
@@ -368,7 +378,7 @@ def build_skeleton(bub, site, adv_f, pod_f, cotd_f, prev, today, counts):
         "calls": {"open": [], "close": []},   # 登帳與結案，準則見 brief 3.2 末；PREP.md 的帳本段列了待驗收帳目
         "gaps": ["（填：缺天／各庫 updatedLabel 過期／指標 asof 落後／卡片數異常／圖表庫 qa_flags）"],
         "about": {"run": "（填：本期執行紀錄與樣本厚度）",
-                  "method": "prepare.py 備料 → 兩個平行子代理讀敘事側 → 主線併入量化底盤合成 → verify.py 逐字回查"},
+                  "method": "prepare.py 備料 → 兩個平行子代理讀敘事側 → 主線併入量化底盤與賣方側合成 → kb-core 閘門（checks/convergence.py）逐字回查後發布"},
     }
 
 
@@ -558,11 +568,12 @@ def main():
         md += ["\n## ⚠️ 樣本偏薄"] + [f"- {t}" for t in thin]
     if not fresh:
         md += ["\n## 🛑 零新增資料",
-               f"四庫最新日期皆 ≤ 上一期（{prev['date']}）。依規格 §2.1 **不產期**：",
+               f"五庫最新日期皆 ≤ 上一期（{prev['date']}）。依規格 §2.1 **不產期**：",
                "在交付訊息寫明「本次未產期」與各庫實際最新日期，不寫任何檔案。"]
     if a.emit_skeleton:
         sk = build_skeleton(bub, a.site, adv_f, pod_f, cotd_f, prev, today,
-                            {"card": ncard, "ep": nep, "chart": nch})
+                            {"card": ncard, "ep": nep, "chart": nch},
+                            res_cov=(f"{len(res_f)} 期 / {nrep} 份 / 原句 {nst} 筆" if res_f else None))
         sp = os.path.join(W, "skeleton.json")
         with open(sp, "w", encoding="utf-8") as f:
             json.dump(sk, f, ensure_ascii=False, indent=1)

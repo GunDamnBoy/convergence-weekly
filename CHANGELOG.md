@@ -36,6 +36,8 @@
 
 | 日期 | 版本 | 一句話 | 動到的檔案 | 類型 | 收工 commit |
 |---|---|---|---|---|---|
+| 2026-09-29 | **v2.1** | 投顧來源改回現役 repo；帳本與指紋基準回到發布軌；骨架吐六節；brief／MAINTENANCE／排程 prompt 對齊 v2 | `prepare.py` `AGENT_BRIEF` `MAINTENANCE` `CHANGELOG` `data/calls.json` `data/index.json`（008 errata）＋kb-core `kbcore/system.py` `tools/publish.py` `systems/convergence.py` `skills/convergence/SKILL.md` `skills/maintain/convergence/*`＋排程 prompt | 修正＋架構 | data：`f8d9408`；原始檔待手動提交 |
+| 2026-08-23 | **v2**（事後追記） | 五庫（加外資報告週摘）、六節（加賣方對帳）、發布改走 kb-core、週一 15:00 | 見 brief 開頭 v2 表；本檔當時未記 | 架構 | — |
 | 2026-08-17 | **v1.0.1** | 以 writing-for-agents 六槓桿審 brief 與排程 prompt，先修 5 處會過期的抄本與指錯的指標 | `AGENT_BRIEF` `MAINTENANCE` `prepare.py` ＋排程 prompt | 修正 | `355e02e0`＋ |
 | 2026-08-10 | **v1.0** | 深度總檢＋兩個新功能：發布閘門、全面數值對帳、XSS 跳脫、訊號帳本（記分板）、上游改版偵測、前端長期化 | ＋`publish.py` ＋`cwlib.py` ＋`.gitignore` `prepare.py` `verify.py` `make_index.py` `healthcheck.py` `index.html` `AGENT_BRIEF` `MAINTENANCE` | 架構＋功能＋安全 | `9f1ddbd5`→`5d9f41ae`＋ |
 | 2026-08-09 | **v0.9** | 依第 002 期實跑的用量報告優化：骨架化、禁重複勞動、修 watch 綁定漏洞 | `prepare.py` `verify.py` `AGENT_BRIEF` `MAINTENANCE` `data/index.json` | 效能＋修正 | `7acb1d29`＋ |
@@ -79,6 +81,7 @@
 | **v0.7.1** | **19,009** | **3,016** | **22,025** | 5 | 9 |
 | **v0.8** | 19,278 | 3,016 | **22,294** | 5 | 9 |
 | **v1.0.1** | 23,008 | 4,085 | **27,093** | 7 | 16 |
+| **v2.1** | 27,281 | 7,631 | **34,912** | 2（`prepare.py`＋`cwlib.py`；其餘在 kb-core） | kb-core 10 條 |
 
 > ⚠️ 本表缺 v0.9 與 v1.0 兩列，且 v1.0 的度量那一列誤植在第 1 節的版本索引表中間。
 > 已列入待修（本輪授權範圍不含它，刻意不順手改）。
@@ -130,12 +133,13 @@
 > 第 6 節 v0.5.1 事故紀錄（**那是當時的版本，已標註為歷史敘述**）。
 > 複寫本身就是 3.1 這個失效模式的溫床——下次動清單時順手把第 2 節那份改成引用。
 
-### 3.2 規則寫在排程讀不到的地方（2 次）
+### 3.2 規則寫在排程讀不到的地方（3 次）
 
 排程每次觸發都是全新 session，**只讀 `AGENT_BRIEF.md` 與 prompt**。
 
 - v0.4：「量化佐證不得取自 `events`」只活在 `MAINTENANCE.md` 與 `verify.py`——排程從來不知道這條。
 - v0.4：樣本不足處置整條沒進 prompt，而當時投顧就是只留 3 天，等於每期都會踩到。
+- v2：搬家重寫排程 prompt 時，「量化佐證不得取自 `events`」又掉了一次（閘門還擋得住，但排程不知道）。v2.1 補回。
 
 **現行對策**：`MAINTENANCE.md` 第 2 節末的自問——「這條規則排程執行時讀得到嗎？」
 
@@ -154,6 +158,20 @@
 **現行對策**：維護 skill 把「再叫一次子代理獨立比對」列為固定步驟，不是可選項。
 注意這些 bug 的共同特徵——**正常路徑測不到**，要嘛需要缺參數、要嘛需要特定資料狀態。
 
+### 3.5 搬家時，沒有欄位負責的職責會安靜消失（v2.1 發現，同一次搬家掉了兩件）
+
+v2 把發布從本 repo 的 `publish.py` 搬到 kb-core。舊 `publish.py` 除了寫單期檔與 index，
+還**順手**做兩件事：折帳本、寫指紋基準。新的共用 publish 只照 `System` 的欄位做事，
+而那兩件事沒有欄位——**不是誰改壞了，是這件事在新架構裡從來沒有主人**
+（跟 kb-core 2026-08-21 發現 `charts/` 沒人推是同一個病）。
+
+另一件同型的：投顧系統 8 月下旬搬到 `advisory-rewrite`，**舊 repo 沒有刪、clone 照樣成功**，
+於是 `prepare.py` 拿到零天、PREP 誠實地印「0 天」，排程照樣本偏薄處理——連兩期。
+
+**共同特徵**：每一個訊號都說成功（回執 exit 0、閘門全綠、PREP 如實），失效只在結論裡。
+**對策**：kb-core `System.side_files`（讓衍生檔有主人）；`prepare.py` 註明系統 id ≠ repo；
+排程 prompt 第 1 步 grep 確認來源。**搬家的驗收清單要列「舊程式順手做的事」，不只列它的介面。**
+
 ### 3.4 上游改版沒有通知機制（1 次，但影響最大）
 
 監控庫 2026-08-04 從六維改三層，是第 001 期發布的隔天。
@@ -168,6 +186,55 @@
 ---
 
 ## 4. 各版本詳述
+
+### v2.1 — 2026-09-29 · 修正＋架構
+
+**動機**：第 009 期發布後的維護巡檢。子代理獨立比對＋實跑抓到三件靜默數週的事
+（詳見 `MAINTENANCE.md` 第 6 節同日事故）：投顧抓錯 repo、帳本與指紋停在 8/23、
+排程 prompt 掉了 events 禁令；外加 brief／MAINTENANCE／維護 skill 大面積停在 v1。
+
+**逐檔改動**
+
+- kb-core `kbcore/system.py`：`System` 加第五個接縫 `side_files`（預設 None，理由寫在 docstring）。
+- kb-core `tools/publish.py`：閘門與不可改寫守衛之後、寫任何檔之前計算衍生檔；
+  `ValueError` → exit 10 @ side-files；路徑不在 `staged_paths` 底下 → exit 12。
+- kb-core `systems/convergence.py`：搬回 `fold_calls`（open 先於 close；**同結果重判為 no-op、改判擋下**）
+  與 `upstream_fingerprint`（與 `cwlib.py` 同名函式成對）；`upstream.json` 只在發布最新一期時寫。
+- `prepare.py`：`adv` 改 clone `advisory-rewrite`；骨架加 `schemaVer:"2"`、六節、第五列 coverage、
+  `rulings:[]`、stamp 預填；exit 3 與零新增文字改「五庫」。
+- `data/calls.json`：依第 001～009 期回補（23 筆：2 勝 3 敗 18 未決）。c003-5 四期判決互相矛盾
+  （miss／hit／hit／miss），以第一次為準。
+- `data/index.json`：第 008 期掛 errata（舊期走 index，理由見被否決的選項）；
+  第 009 期 errata 走發布軌（commit `f8d9408`，同時推上回補的帳本與新指紋）。
+- `AGENT_BRIEF.md`：檔案樹、§3.0 章節數、一組一起改清單、§3.1 schema（`schemaVer`／`rulings`／
+  `s` 五值）、§3.2 帳本、§4 第 1–2、5、6 步整段改寫為 v2 發布軌與五行交付、errata 兩條路、
+  `verify.py` → 閘門、四庫 → 五庫、§6 待決第 2、7 條。
+- `MAINTENANCE.md`：推送鏈、§3 排程表、§4 已知的坑（git、手動提交、side_files、系統 id、errata）、
+  §5 待辦（第 010 期積壓帳目、adv.txt 體積、其他排程停用）、§6 新事故。
+- 排程 prompt（kb-core `skills/convergence/SKILL.md` 與桌面排程同步）：見該檔。
+- kb-core `skills/maintain/convergence/*`：對齊 v2。
+
+**被否決的選項**
+
+- **publish 順手 commit 原始檔**：違反「不代為提交別人的工作」；改為人手動提交＋prompt 大聲檢查。
+- **舊期 errata 走發布軌**：實測第 008 期在閘門 121 個片段對不上、`quant_reconcile` 全不符。
+- **帳本回補時以最後一次裁決為準**：c003-5 最後一次是 miss，跟第一次同，但原則上「第一次」
+  才是當時資料下的判斷，後面幾次是在帳本失明下的重問。
+- **`side_files` 不給預設、逐套系統明寫 None**：會動到另外五套系統的登記；預設 None 不會讓繼承者寫錯東西。
+
+**驗證方式**：kb-core `py_compile`＋`report.selftest()` 0 問題；沙箱建一份 git repo＋bare remote
+實跑 publish（009 errata exit 0、帳本與指紋落地；008 errata exit 10，證實上面那條否決）；
+正式發布回執 exit 0 @ pushed `f8d9408`，GitHub 上 `calls.json` 2/3/18、`upstream.json` 含 `sahm05`；
+新 `prepare.py` 實跑：投顧 6 天 619 卡、帳本 2 勝 3 敗、無 🛑、骨架六節；
+子代理獨立複查兩輪：改動前一輪抓出本版全部問題，改動後一輪抓出 6 處殘句與一段被刪的「用量」指向，已同輪修正。
+
+**度量**：brief 27,281 字、prompt 7,631 字，每週必讀合計 34,912（v1.0.1 為 27,093）。
+增加的主要是 v2 本身（五庫、賣方對帳、發布軌與 exit 表）——v2 搬家時本檔沒有量過，
+這次是補量，不是 v2.1 單獨加了 7.6K。字數以 Python `len()` 計（字元數）。
+
+**回溯要點**：kb-core 三檔可單獨退，退了之後帳本與指紋會再度停住（不會壞發布）。
+`prepare.py` 退回去會重新抓到零天投顧。`data/calls.json` 是衍生狀態，可隨時用
+`systems/convergence.fold_calls` 對全部單期檔重算。
 
 ### v1.0.1 — 2026-08-17 · 修正
 

@@ -26,9 +26,10 @@ git push -u origin main
 # 4) 約一分鐘後：https://gundamnboy.github.io/convergence-weekly/
 ```
 
-**接上自動推送**：既有的 `com.kenny.dashpush`（每 180 秒）如果是逐一列出資料夾的，
-要把 `~/convergence-weekly` 加進它的清單；如果是掃描某個母目錄的，放對位置即可。
-加完之後改一個字測試，確認 180 秒內會自己推上去。
+**推送鏈（v2 起）**：dashpush 已退場。`data/` 由 kb-core 的 publish 在發布時 commit＋push；
+**`data/` 以外的已追蹤檔（prepare.py、本檔、brief……）沒有任何自動機制會推**，
+改完要人手動 `git add … && git commit && git push`——否則下一次 publish 會在
+rebase 前被擋下（exit 15 @ worktree-dirty），而排程 clone 到的仍是舊版。見第 4 節。
 
 ---
 
@@ -58,7 +59,7 @@ git push -u origin main
 
 | | 這一套現在 | 2026-08-23 之前 |
 |---|---|---|
-| 在哪跑 | Mac mini（桌面排程，夾 `convergence-weekly` 與 `outbox`） | Anthropic 雲端容器 |
+| 在哪跑 | Mac mini（桌面排程 `convergence-weekly-1500`，cron `0 15 * * 1` 本地時間；夾 `convergence-weekly`、`outbox`、`kb-core`、`broker-research-digest` 四個資料夾） | Anthropic 雲端容器 |
 | 怎麼交草稿 | 直接寫 `~/outbox/convergence/` | `device_commit_files` 過橋 |
 | prompt 正本 | `kb-core/skills/convergence/SKILL.md` | 本檔第 3 節（一份會過期的複本） |
 | 出現在 `list_triggers` | 否 | 是 |
@@ -93,10 +94,14 @@ git push -u origin main
 
 ## 4. 已知的坑
 
-- **不要跑任何 git 指令，含 `git status`。**
-  本機 `com.kenny.dashpush` 每 180 秒自動推送，跑 git 會留下 `.git/index.lock` 擋住推送。
-  要看狀態只用 `cat` / `ls` / `grep` / `tail`。
-  （例外：第 1 節的首次上架，那時 dashpush 還沒接上。）
+- **沙箱裡不要對本機 repo 跑任何 git 指令，含 `git status`。**
+  掛載檔案系統不支援 git 的 lock 語意，留下的 `.git/index.lock` 會擋住 kb-core publish 的
+  commit／rebase。要看狀態只用 `cat` / `ls` / `grep` / `tail`，或對沙箱另 clone 一份比對
+  （`diff -rq --exclude=.git --exclude=work`）。
+- **`data/` 以外的已追蹤檔改了就要人手動提交。** publish 只 add `data/`，
+  其他髒檔會讓它在 rebase 前回 exit 15（2026-08-24 連續 191 輪的那種）。
+  維護收工時交付訊息必須寫明要提交哪幾個檔；排程 prompt 第 1 步也會 grep clone 下來的
+  `prepare.py` 確認修正已經上 GitHub。
 - **不要刪除或改寫既有的 `data/YYYY-MM-DD.json`。** 歷史全部保留是這套系統的核心。
 - **不要只改 brief 或只改排程 prompt 其中一邊。**
 - **`index.json` 的量化快照漏寫，趨勢圖就會斷。** 這是最容易犯又最不容易發現的錯——
@@ -106,17 +111,19 @@ git push -u origin main
 - **三方共振要真的是三方獨立。** 監控庫的 `events` 欄位本身就是 Google News，
   如果某條「共振」的量化側證據其實只是 `events` 裡的一則新聞，那不是共振，是同一則新聞被數了兩次。
   **量化側的佐證只能取自 `indicators` / `dims` / `stage` / `tw`，不能取自 `events`。**
-  （v0.4 起這條同時寫在 `AGENT_BRIEF.md` 第 5 節與排程 prompt，`verify.py` 會 FAIL。）
-- **`verify.py --bub` 吃的是原始 `bub/data.json`，不是 `bub.txt`。**
-  餵壓縮檔進去會直接壞掉。敘事側才是 substring 回查，量化側做的是欄位名存在性與數值核對。
+  （這條寫在 `AGENT_BRIEF.md` 第 5 節與排程 prompt，kb-core 閘門 `quant_grounded` 會 FAIL。
+  v2 搬家時排程 prompt 一度掉了這條，2026-09-29 補回。）
+- **閘門的監控庫吃原始 `work/bub/data.json`，不是 `bub.txt`。**
+  敘事側是 substring 回查，量化側做的是欄位名存在性與數值核對。
 - **`build_issue.py` 有防覆寫閘門。** 既有單期檔存在時它會拒跑（要 `--force`）。
   這是刻意的：那支檔案會被當範例反覆閱讀，很容易被順手執行而洗掉歷史。
-- **`sections` 的 id 與順序被鎖死。** v0.5 起為
-  `resonance→divergence→taiwan→charts→single`（5 節）；第 001 期是 4 節（無 `charts`），
-  `verify.py` 的 `LEGACY` 清單放行。外殼尾段編號已改為依長度動態計算，不再寫死。
+- **`sections` 的 id 與順序被鎖死。** v2（`schemaVer:"2"`）起為
+  `resonance→divergence→verdicts→taiwan→charts→single`（6 節）；第 001 期 4 節、
+  第 002～003 期 5 節，kb-core `checks/convergence.py` 的 `SECTION_SETS` 放行舊組合。
+  外殼尾段編號依長度動態計算。
   要增減章節或動 schema，一組一起改（清單見 brief 第 3.0 節末——唯一正本，本檔不複寫）。
 - **每日五圖不是獨立來源。** 它的 `about.upstream[0]` 就是投顧庫的當日檔——選題同源。
-  「投顧在講＋圖表也在畫」是一票不是兩票，`verify.py` 會對 `resonance` 節實際計算獨立聲音數。
+  「投顧在講＋圖表也在畫」是一票不是兩票，閘門 `resonance_independent` 會對 `resonance` 節實際計算獨立聲音數。
   這是 `events` 禁令的同型問題，第三次踩到同一個坑了（`events`、然後是圖表庫）：
   **每接一個新來源，第一個要問的問題永遠是「它的上游是誰」。**
 - **監控庫 2026-08-04 改版且不可換算。** 六維 `D1`–`D6` → 三層 `L1`/`L2`/`L3`，
@@ -124,19 +131,25 @@ git push -u origin main
   （v2 為 22 項；`hyoas`／`circular` 等舊 id 仍在，不是整組換掉）。
   `history` 舊筆保留 D 鍵，算變動時基準只能取同架構的最早一筆。
   `quant.schemaVer` 與 `index.json` 的 `quantVer` 就是用來標這條線的，漏寫會 FAIL。
-- **`verify.py` 第 5.6 項只認 id 字串。** 用純中文描述門檻而完全不寫 trigger id 的
+- **閘門 `watch_bound` 只認 id 字串。** 用純中文描述門檻而完全不寫 trigger id 的
   `watch` 條目它抓不到——那要靠 prompt 的自律。它能擋的是「寫了 id 卻沒用 `<code>` 標」
   與「標成 indicator id」，第 002 期那 4 條都屬於後兩類。
-- **`publish.py` 是唯一發布路徑（v1.0 起）。** 草稿一律寫 `work/issue.json`，
-  **不要直接寫 `data/`**——dashpush 180 秒內就推上線，檢查必須在寫入之前。
-  手跑 make_index 或手動複製檔案都是繞過閘門。
-- **publish 的落地不是跨檔原子。** 四份檔案（單期／index／calls／upstream）先全部
-  序列化到 `.tmp` 再連續 `os.replace`——序列化失敗不落地，但 replace 之間仍有
-  微秒級視窗。若真的出現「單期檔在、index 沒跟上」，是這裡斷的：補跑同一指令即可
-  （冪等重跑會走通）。
+- **kb-core 的 `tools/publish.py` 是唯一發布路徑（v2 起）。** 草稿寫
+  `~/outbox/convergence/<日期>.draft.json`，launchd `com.kenny.kbpublish.convergence` 每 60 秒接手，
+  回執 `<日期>.receipt.json`。**不要直接寫 `data/<日期>.json`**——那是繞過閘門。
+  本 repo 的 `publish.py`／`verify.py`／`make_index.py`／`healthcheck.py` 已退場。
+- **帳本與指紋基準由 publish 的 `side_files` 寫。** 單期檔、index、`calls.json`、
+  `upstream.json` 各自原子寫入但不是跨檔原子；帳本折不進去（結不存在的帳、改判）會在寫入前
+  回 exit 10。`upstream.json` 只在發布最新一期時更新。**指紋函式有兩份**
+  （`cwlib.py` 讀基準、kb-core `systems/convergence.py` 寫基準），改一份要改另一份。
+- **系統 id ≠ repo 路徑。** 投顧的系統 id 是 `advisory-knowledge-hub`，repo 是
+  `advisory-rewrite`；同名舊 repo 8/18 起停更，clone 它**不會報錯，只會安靜地拿到零天**。
+- **舊期的 errata 不走發布軌。** 閘門會拿今天的語料重驗，舊期必然 FAIL；
+  直接在 `data/index.json` 該期 entry 加 `errata`（第 001、002、008 期的做法），下次發布一併 commit。
+  最新一期可以走發布軌（草稿加 `errata`、其餘一字不動）。
 - **`calls` 的 `void` 僅供人工維護。** 排程只用 hit/miss/expired；void 帳目
   不計戰績也不列未結案清單（`prepare.py` 刻意排除），不是帳目遺失。
-- **`verify.py` 是發布前檢查，不是歷史稽核工具。** 拿舊期回頭驗今天的監控資料一定會 FAIL
+- **閘門是發布前檢查，不是歷史稽核工具。** 拿舊期回頭驗今天的監控資料一定會 FAIL
   （指標 id 退役、架構改版），那不代表那一期當時是錯的。腳本的錯誤訊息已同時說明兩種情況。
 
 ---
@@ -144,12 +157,9 @@ git push -u origin main
 ## 5. 待辦與觀察中
 
 - [x] 首次上架（見第 1 節）——已上架，本機與遠端同步
-- [x] 建立排程任務（taskId `convergence-weekly`，cron `30 21 * * 0` 本地時間）
-      ——2026-08-03 v0.4 巡檢時建立
-- [x] **推送鏈確認可用。** v0.4 巡檢期間本機 HEAD 自己從 `8f2555b` → `139bb93` → `0aa8dd0`，
-      證明 `com.kenny.dashpush` 的清單裡有這個 repo。
-      （`healthcheck.py` 仍會對 `~/.dashpush/auto-push.sh` 出 WARN——那只是沙箱看不到該檔，
-      不是故障。要消掉這個 WARN 得另外授權 `~/.dashpush` 資料夾。）
+- [x] 建立排程任務——現行 taskId `convergence-weekly-1500`，cron `0 15 * * 1` 本地時間
+      （2026-08-03 建的 `convergence-weekly` 週日 21:30 已退場）
+- [x] 推送鏈：v2 起由 kb-core publish 推 `data/`（dashpush 已退場）。其餘檔案手動提交。
 - [x] 投顧知識庫保留天數——2026-08-06 覆核已是 **6 天**（07-30、08-02～08-06），
       樣本偏薄分支不再是每期必踩。待觀察：是否穩定在 6 天
 - [ ] 觀察：累積 4 期後檢視「跨期趨勢」九格是否選對了指標
@@ -173,10 +183,46 @@ git push -u origin main
       下期有沒有逼出 `calls.close`
 - [ ] 觀察（v1.0）：第一次 🛑 上游改版偵測觸發時，檢視 diff 文字能不能直接寫進
       `gaps`（設計目標），還是需要人再翻譯一層
+- [ ] **第 010 期（2026-10-05）要驗收的積壓帳目**（v2.1 回補後才浮出）：c004-1、c005-3
+      按第 009 期數據已是 miss（`gsy150`、`y10_5` 都已點亮），c007-1 已是 hit（第 008 期
+      +139%＜150% 且 `soxmom` −19pp）；c006-3（日銀 9 月會議，期限 9/30）到期。
+      看排程有沒有照 PREP 全部結案。
+- [ ] 觀察（v2.1）：投顧改回 `advisory-rewrite` 後 `adv.txt` 為 68–81K，
+      截斷已到底（45 字）仍超過 60K 目標。規格允許（不減卡片則數），但要看子代理 A 的成本
+- [ ] 待確認（2026-09-29）：桌面排程器上除本套外其餘七支都是 disabled，而各庫仍有 9/28 資料——
+      若已改由別處觸發，`kb-core/tools/schedule_gaps.py` 的 `SCHEDULE` 要跟著改
 
 ---
 
 ## 6. 事故與決策檔案
+
+### 2026-09-29（v2.1）｜三個「每一個訊號都說成功」的洞，同一場維護抓到
+
+第 009 期發布後的維護巡檢，子代理比對＋一次實跑，抓出三件都已經靜默數週的事：
+
+1. **投顧庫連兩期「窗口內無檔」其實是抓錯 repo。** `prepare.py` 仍 clone
+   `advisory-knowledge-hub`——那是系統 id，也是一個 8/18 起停更的舊 repo；投顧早已改在
+   `advisory-rewrite` 發布。clone 成功、摘要層 0 位元組、PREP 誠實地寫「0 天」，
+   第 008、009 期照規格把它當「樣本偏薄」處理——**每一步都照規矩，結論是假的**。
+2. **帳本與指紋基準從 8/23 起沒有人寫。** v2 搬家時舊 `publish.py` 的 `fold_calls` 與
+   `upstream.json` 寫入沒有跟到 kb-core。後果：記分板停在 0 勝 0 敗；第 004～007 期新開的
+   12 筆帳目**從未出現在 PREP**、從未被驗收；c003-5 被四期分別判成 miss／hit／hit／miss；
+   上游改版偵測每期重報同一批差異。排程 prompt 把它寫成「已知缺陷，照實回報」——
+   **一個被寫進流程的缺陷，就不會再有人去修。**
+3. **排程 prompt 掉了「量化佐證不得取自 events」。** 閘門還擋得住，但它不在執行視野裡——
+   跟 v0.4 巡檢那則是同一個失效模式。
+
+處置：kb-core `System` 加第五個接縫 `side_files`（publish 在閘門後、寫入前計算，
+錯誤回 exit 10）；帳本依第 001～009 期回補（以每筆的第一次裁決為準，改判一律擋、
+同結果重判為 no-op）；`prepare.py` 改 clone `advisory-rewrite`，骨架改吐 v2 六節；
+第 008、009 期掛 errata（008 寫 index、009 走發布軌）；brief／本檔／排程 prompt 對齊 v2。
+
+被否決的選項：
+- **讓 publish 順手 commit `prepare.py` 等原始檔。** 會讓維護做到一半的檔被一次無關的
+  資料發布推上去，與 publish「不代為提交別人的工作」的原則相反。改為人手動提交，
+  並在排程 prompt 第 1 步 grep 確認修正已上 GitHub——沒上就大聲停。
+- **舊期 errata 也走發布軌。** 實測閘門會拿今天的語料重驗第 008 期，121 個片段對不上、
+  quant_reconcile 全數不符，必然 exit 10。舊期只能照第 001、002 期的前例寫 index。
 
 ### 2026-08-06（v0.5.1）｜v0.5 整支漏掉 healthcheck.py，因為清單本身是過期的
 
@@ -360,4 +406,4 @@ brief 第 0 節宣告四種訊號（共振／背離／裂縫／單邊）是「�
 逐檔改動、被否決的選項、驗證方式、**回溯要點**（有沒有資料格式相依），
 以及一節「反覆出現的失效模式」——同一類錯誤已經出現多次，那節是最值得先讀的。
 
-新增版本時：`python3 healthcheck.py --metrics` 取數，填進 `CHANGELOG.md` 第 1、2、4 節。
+新增版本時：`healthcheck.py` 已退場，度量改從 kb-core 的回執與 `convergence_verify.py` 輸出取，填進 `CHANGELOG.md`。
