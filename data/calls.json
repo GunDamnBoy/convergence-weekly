@@ -31,7 +31,10 @@
    "claim": "信用壓力是尾端單獨定價而非系統性循環：<code>ccc12</code> 會先於 <code>hy80</code> 觸發，或兩者在期限內都不觸發",
    "judge": "<code>ccc12</code> 與 <code>hy80</code> 兩個 state 的翻轉先後；若 <code>hy80</code> 先翻轉即為 miss",
    "deadline": "2026-10-31",
-   "status": "open"
+   "status": "hit",
+   "closed": "2026-10-06",
+   "closedIssue": 10,
+   "closeNote": "押 ccc12 先於 hy80 觸發。本期 ccc12 由 0 翻為 1（12.02%、asof 2026-10-02），hy80 仍為 0（+36bp/3M）——翻轉先後已定。"
   },
   {
    "id": "c003-4",
@@ -64,7 +67,10 @@
    "claim": "本輪是價格層冷卻而非融資層冷卻：<code>gsy150</code> 在 2026-10-31 前不會重新翻回 1",
    "judge": "<code>gsy150</code> state 是否由 0 翻轉為 1；翻轉即為 miss",
    "deadline": "2026-10-31",
-   "status": "open"
+   "status": "miss",
+   "closed": "2026-10-06",
+   "closedIssue": 10,
+   "closeNote": "押 gsy150 在 10/31 前不會重新翻回 1。它在第 007 期（9/14）已翻回 1，第 009 期再度為 1，本期 +156% 仍為 1。"
   },
   {
    "id": "c004-2",
@@ -117,7 +123,10 @@
    "claim": "升息定價在期限內不會被拆掉：節目側的長端故事不會接管，圖表側算出的 2 年期強勢會延續——<code>y10_5</code> 在期限內不觸發，而 2 年減 3 個月不回落到零以下",
    "judge": "<code>y10_5</code> state 是否由 0 翻轉為 1；輔以圖表庫重製的 2 年減 3 個月利差是否轉負",
    "deadline": "2026-10-31",
-   "status": "open"
+   "status": "miss",
+   "closed": "2026-10-06",
+   "closedIssue": 10,
+   "closeNote": "押 y10_5 在 10/31 前不觸發。第 009 期已翻為 1（5.18%），本期 5.28% 仍為 1。"
   },
   {
    "id": "c006-1",
@@ -147,7 +156,10 @@
    "claim": "日銀 9 月會議不升息，且會後聲明的理由不會歸到通膨——野村對、高盛的提前錯",
    "judge": "日銀 9 月政策會議的決議與聲明；無對應觸發器（<code>policy_gap</code> 只量美國）",
    "deadline": "2026-09-30",
-   "status": "open"
+   "status": "miss",
+   "closed": "2026-10-06",
+   "closedIssue": 10,
+   "closeNote": "押日銀 9 月不升息且理由不歸到通膨。期限 9/30 已過；10/1 公布的 9 月會議意見摘要寫「多數支持升息，若通膨向上偏離須加快升息步調」，升息步調明確綁在通膨上，第二個條件不成立。會後聲明原文不在任何一庫窗口內，是以意見摘要裁決。"
   },
   {
    "id": "c007-1",
@@ -157,7 +169,10 @@
    "claim": "<code>gsy150</code> 這次點亮是後照鏡：它的 value 會在 2026-10-31 前跌回 +150% 以下（現 +158%），而同期 <code>soxmom</code> 不會回到 0 以上（現 -14pp）",
    "judge": "監控庫 <code>gsy150</code> 的 value 與 <code>soxmom</code> 的值。兩個條件都成立為 hit；<code>soxmom</code> 先回正而 <code>gsy150</code> 維持 +150% 以上為 miss。門檻為本期自訂，<code>gsy150</code> 的 state 翻轉與否不單獨構成裁決",
    "deadline": "2026-10-31",
-   "status": "open"
+   "status": "miss",
+   "closed": "2026-10-06",
+   "closedIssue": 10,
+   "closeNote": "裁判寫明「soxmom 先回正而 gsy150 維持 +150% 以上為 miss」。本期 soxmom +3pp（由 -9pp 翻正），gsy150 +156%。"
   },
   {
    "id": "c007-2",
@@ -213,7 +228,10 @@
    "claim": "ccc12 會在 2026-12-31 前翻轉為 1：CCC 10.76%、三個月 +130bp，且 CCC 減 BB 已在近三年第 99.5 分位",
    "judge": "<code>ccc12</code> state 是否由 0 翻轉為 1",
    "deadline": "2026-12-31",
-   "status": "open"
+   "status": "hit",
+   "closed": "2026-10-06",
+   "closedIssue": 10,
+   "closeNote": "押 ccc12 在年底前翻轉為 1。本期 12.02%、state 1、asof 2026-10-02。"
   },
   {
    "id": "c008-4",
@@ -242,6 +260,36 @@
    "kind": "divergence",
    "claim": "只要 y10_5 維持 1，gsy150 會在 2026-10-31 前再翻回 0：本次點亮是一週修復推過 24 個月回望門檻，不是新高",
    "judge": "<code>gsy150</code> 是否在 2026-10-31 前由 1 翻回 0；到期仍為 1 即為 miss",
+   "deadline": "2026-10-31",
+   "status": "open"
+  },
+  {
+   "id": "c010-1",
+   "opened": "2026-10-06",
+   "issue": 10,
+   "kind": "divergence",
+   "claim": "信用壓力在 2026-11-30 前不會擴散到高收益整體：hy80 不翻轉（現 +36bp/3M），即使 ccc12 維持 1",
+   "judge": "<code>hy80</code> state 是否由 0 翻轉為 1；翻轉即為 miss",
+   "deadline": "2026-11-30",
+   "status": "open"
+  },
+  {
+   "id": "c010-2",
+   "opened": "2026-10-06",
+   "issue": 10,
+   "kind": "divergence",
+   "claim": "勞動市場是停滯不是轉折：sahm05 在 asof 更新到 2026-10-01 的讀數時仍為 0（現 +0.00pp）",
+   "judge": "<code>sahm05</code> 在 asof 2026-10-01 讀數的 state；翻為 1 即為 miss；2026-11-15 前 asof 未前進則 expired",
+   "deadline": "2026-11-15",
+   "status": "open"
+  },
+  {
+   "id": "c010-3",
+   "opened": "2026-10-06",
+   "issue": 10,
+   "kind": "divergence",
+   "claim": "柴油型能源衝擊不會把 9 月 CPI 推過 4%：cpi4 在 asof 更新到 2026-09-01 時仍為 0（現 3.4%、asof 2026-08-01）",
+   "judge": "<code>cpi4</code> 在 asof 2026-09-01 讀數的 state；翻為 1 即為 miss；2026-10-31 前 asof 未前進則 expired",
    "deadline": "2026-10-31",
    "status": "open"
   }

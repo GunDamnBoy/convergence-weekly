@@ -1,8 +1,30 @@
 {
- "updated": "2026-09-28T16:03:18+00:00",
- "updatedLabel": "9/29 00:03",
- "count": 9,
+ "updated": "2026-10-06T12:40:10+00:00",
+ "updatedLabel": "10/6 20:40",
+ "count": 10,
  "days": [
+  {
+   "date": "2026-10-06",
+   "issue": 10,
+   "label": "第 010 期 · 2026 年 10 月 6 日",
+   "short": "10/6",
+   "headline": "CCC 利差 12.02% 點亮第三盞燈、十年期升到 5.28%，費半卻在同一個月漲 9.6%、<code>soxmom</code> 翻正——壓力全壓在利率與信用最底層，AI 的價格層一格沒讓；而把兩邊接起來的 AI 債市，9 月投等發行已經掛零",
+   "quantVer": "v2",
+   "composite": 63.6,
+   "dims": {
+    "L1": 63.7,
+    "L2": 79.5,
+    "L3": 44.8
+   },
+   "quadrant": {
+    "heat": 71.6,
+    "support": 55.2
+   },
+   "trigLit": 3,
+   "twHeat": 44.0,
+   "stage": 2.8,
+   "file": "data/2026-10-06.json"
+  },
   {
    "date": "2026-09-28",
    "issue": 9,
