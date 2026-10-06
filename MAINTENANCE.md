@@ -53,13 +53,20 @@ rebase 前被擋下（exit 15 @ worktree-dirty），而排程 clone 到的仍是
 
 ---
 
-## 3. 排程：本機執行，正本在 kb-core
+## 3. 排程：雲端觸發、在 Mac 上執行，正本在 kb-core
 
-**這一套自 2026-08-23 起是 Cowork 桌面的「夾資料夾」排程，跑在 Mac 上，不是雲端。**
+**2026-10-05 起是雲端排程「Convergence weekly 1600」，開「Require this computer」**：
+雲端派工、實際跑在 Mac 上、夾四個資料夾，Mac 要醒著。其他六套 9/18–9/24 已先這樣搬。
+舊的桌面排程 `convergence-weekly-1500`（顯示名改為「Convergence weekly 150」）已 **disabled**，
+留著當退路；確認新排程連續兩週正常再刪。
+**雲端排程不會出現在 `list_scheduled_tasks`**，那支工具只看得到桌面排程；
+狀態請在 App 的 Scheduled 頁看，「有沒有跑」照舊看回執。
+
+（2026-08-23 ～ 10-05 是 Mac 桌面排程 `convergence-weekly-1500`，cron `0 15 * * 1`。）
 
 | | 這一套現在 | 2026-08-23 之前 |
 |---|---|---|
-| 在哪跑 | Mac mini（桌面排程 `convergence-weekly-1500`，cron `0 15 * * 1` 本地時間；夾 `convergence-weekly`、`outbox`、`kb-core`、`broker-research-digest` 四個資料夾） | Anthropic 雲端容器 |
+| 在哪跑 | 雲端排程＋Require this computer，每週一 16:00 本地時間，實際在 Mac 上執行；夾 `convergence-weekly`、`outbox`、`kb-core`、`broker-research-digest` 四個資料夾 | Anthropic 雲端容器（沒有本機資料夾） |
 | 怎麼交草稿 | 直接寫 `~/outbox/convergence/` | `device_commit_files` 過橋 |
 | prompt 正本 | `kb-core/skills/convergence/SKILL.md` | 本檔第 3 節（一份會過期的複本） |
 | 出現在 `list_triggers` | 否 | 是 |
@@ -79,7 +86,8 @@ rebase 前被擋下（exit 15 @ worktree-dirty），而排程 clone 到的仍是
 
 ### 要改流程的時候
 
-改 `kb-core/skills/convergence/SKILL.md`，**然後把整份貼回桌面排程的 prompt 欄**。
+改 `kb-core/skills/convergence/SKILL.md`，**然後把 frontmatter 以下整份貼回 App 裡「Convergence weekly 1600」的 Instructions 欄**
+（雲端排程不在 `update_scheduled_task` 的管轄內，只能在 App 裡改）。
 `kb-core/skills/README.md` 有四套 run skill 共用的形狀與檢核點。
 
 **不要用 `create_trigger` 重建**：那個工具沒有 folder 參數，
@@ -157,7 +165,9 @@ rebase 前被擋下（exit 15 @ worktree-dirty），而排程 clone 到的仍是
 ## 5. 待辦與觀察中
 
 - [x] 首次上架（見第 1 節）——已上架，本機與遠端同步
-- [x] 建立排程任務——現行 taskId `convergence-weekly-1500`，cron `0 15 * * 1` 本地時間
+- [x] 建立排程任務——現行為雲端排程「Convergence weekly 1600」（Require this computer，每週一 16:00）；
+      桌面排程 `convergence-weekly-1500` 於 2026-10-05 停用
+- [ ] 新排程首兩輪驗收：交付訊息沒有「環境自檢失敗」、有回執 exit 0。通過後刪掉停用的 `convergence-weekly-1500`
       （2026-08-03 建的 `convergence-weekly` 週日 21:30 已退場）
 - [x] 推送鏈：v2 起由 kb-core publish 推 `data/`（dashpush 已退場）。其餘檔案手動提交。
 - [x] 投顧知識庫保留天數——2026-08-06 覆核已是 **6 天**（07-30、08-02～08-06），

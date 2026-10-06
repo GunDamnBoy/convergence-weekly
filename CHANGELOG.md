@@ -213,6 +213,14 @@ v2 把發布從本 repo 的 `publish.py` 搬到 kb-core。舊 `publish.py` 除�
 
 **回溯要點**：兩處都是提示文字，退回不影響閘門判定，只會讓草稿作者照錯的詞彙寫。
 
+**同日追加：排程搬家**。桌面排程 `convergence-weekly-1500` 停用，改為 App 的雲端排程「Convergence weekly 1600」
+（Require this computer、夾四個資料夾、每週一 16:00），與其他六套一致。動到：brief §2、`MAINTENANCE.md` §3／§5、
+kb-core `tools/schedule_gaps.py` 的 `SCHEDULE`（15:00→16:00）、`skills/convergence/SKILL.md` frontmatter
+（本文未動，排程 Instructions 仍與正本逐字相同）、`skills/maintain/` 三檔。
+被否決：維持 15:00——使用者選 16:00，仍在 brief §2 的 13:30–20:00 窗口內。
+8/23 那次「雲端排程拿不到本機檔案」的教訓仍成立：新形狀靠的是 Require this computer 夾資料夾，
+**第一輪的第 0 步自檢就是驗收**。
+
 ### v2.1 — 2026-09-29 · 修正＋架構
 
 **動機**：第 009 期發布後的維護巡檢。子代理獨立比對＋實跑抓到三件靜默數週的事
