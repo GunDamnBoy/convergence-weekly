@@ -261,7 +261,10 @@
    "claim": "只要 y10_5 維持 1，gsy150 會在 2026-10-31 前再翻回 0：本次點亮是一週修復推過 24 個月回望門檻，不是新高",
    "judge": "<code>gsy150</code> 是否在 2026-10-31 前由 1 翻回 0；到期仍為 1 即為 miss",
    "deadline": "2026-10-31",
-   "status": "open"
+   "status": "hit",
+   "closed": "2026-10-12",
+   "closedIssue": 11,
+   "closeNote": "gsy150 於 2026-10-09 由 1 翻回 0（+156%→+142%），y10_5 同期維持 1；OpenAI 營收落差那一週費半 ETF 兩天跌 4.4%。期限 10/31 前達成。"
   },
   {
    "id": "c010-1",
@@ -291,6 +294,26 @@
    "claim": "柴油型能源衝擊不會把 9 月 CPI 推過 4%：cpi4 在 asof 更新到 2026-09-01 時仍為 0（現 3.4%、asof 2026-08-01）",
    "judge": "<code>cpi4</code> 在 asof 2026-09-01 讀數的 state；翻為 1 即為 miss；2026-10-31 前 asof 未前進則 expired",
    "deadline": "2026-10-31",
+   "status": "open"
+  },
+  {
+   "id": "c011-1",
+   "opened": "2026-10-12",
+   "issue": 11,
+   "kind": "divergence",
+   "claim": "AI 價格層本輪讓了就不會馬上回來：gsy150 在 2026-11-30 前不會再由 0 翻回 1（現 +142%），因為 y10_5 與 ccc12 兩盞「緊」的燈都亮著",
+   "judge": "<code>gsy150</code> state 是否在 2026-11-30 前由 0 翻為 1；翻回 1 即為 miss",
+   "deadline": "2026-11-30",
+   "status": "open"
+  },
+  {
+   "id": "c011-2",
+   "opened": "2026-10-12",
+   "issue": 11,
+   "kind": "verdict",
+   "claim": "債市已替 Fed 收緊：10/28 FOMC 不升息，聯邦基金利率維持 3.75%",
+   "judge": "<code>policy_gap</code> 的 value 在 asof 2026-11-01 讀數的 FF 是否仍為 3.75%；高於 3.75% 即為 miss；2026-11-30 前 asof 未前進則 expired",
+   "deadline": "2026-11-30",
    "status": "open"
   }
  ]
