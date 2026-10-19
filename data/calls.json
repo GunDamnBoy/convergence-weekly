@@ -90,7 +90,10 @@
    "claim": "台股熱度由部位面驅動而非基本面：在 <code>tw_margin</code> 的 20 日變化轉正之前，<code>twheat</code> 不會回到 48.7 以上",
    "judge": "<code>tw_margin</code> 的 20 日變化與 <code>twheat</code> 的先後順序；若 <code>twheat</code> 在 <code>tw_margin</code> 轉正之前就回到 48.7 以上即為 miss",
    "deadline": "2026-10-31",
-   "status": "open"
+   "status": "hit",
+   "closed": "2026-10-19",
+   "closedIssue": 12,
+   "closeNote": "監控庫 margin_hist 自算：融資 20 日變化 8/25 轉正（+0.3%）、8/26 +9.4%；twheat 8/27 才首次回到 48.7 之上（53.2）。融資先轉正、熱度後到，順序成立。自算以列數回推 20 筆，非官方 20 日欄位。"
   },
   {
    "id": "c005-1",
@@ -146,7 +149,10 @@
    "claim": "升息定價的地基是單月非農，但它撐得過 9 月非農：圖表庫重製的 2 年期減 3 個月國庫券利差到 2026-10-16 不會收在 0.40 個百分點以下（現 0.61）",
    "judge": "圖表庫自行重製的 2 年期減 3 個月利差序列；無對應觸發器，門檻為本期自訂。輔以 <code>sahm05</code> 的下一個讀數",
    "deadline": "2026-10-16",
-   "status": "open"
+   "status": "hit",
+   "closed": "2026-10-19",
+   "closedIssue": 12,
+   "closeNote": "圖表庫重製的 2 年期減 3 個月利差 10/15 為 0.67 點（9/30 高點 0.85），到期前未收在 0.40 以下；序列末日 10/15，10/16 那一點不在序列內。"
   },
   {
    "id": "c006-3",
@@ -294,7 +300,10 @@
    "claim": "柴油型能源衝擊不會把 9 月 CPI 推過 4%：cpi4 在 asof 更新到 2026-09-01 時仍為 0（現 3.4%、asof 2026-08-01）",
    "judge": "<code>cpi4</code> 在 asof 2026-09-01 讀數的 state；翻為 1 即為 miss；2026-10-31 前 asof 未前進則 expired",
    "deadline": "2026-10-31",
-   "status": "open"
+   "status": "hit",
+   "closed": "2026-10-19",
+   "closedIssue": 12,
+   "closeNote": "cpi4 asof 前進到 2026-09-01，9 月讀數 3.7%、state 0。但圖表庫自算核心月增 0.33%、連三個月加快，第 011 期背離節的機制判斷（核心 ≤0.2%）是錯的——門檻贏、機制輸。"
   },
   {
    "id": "c011-1",
@@ -313,6 +322,36 @@
    "kind": "verdict",
    "claim": "債市已替 Fed 收緊：10/28 FOMC 不升息，聯邦基金利率維持 3.75%",
    "judge": "<code>policy_gap</code> 的 value 在 asof 2026-11-01 讀數的 FF 是否仍為 3.75%；高於 3.75% 即為 miss；2026-11-30 前 asof 未前進則 expired",
+   "deadline": "2026-11-30",
+   "status": "open"
+  },
+  {
+   "id": "c012-1",
+   "opened": "2026-10-19",
+   "issue": 12,
+   "kind": "divergence",
+   "claim": "信用壓力停在最底層：圖表庫重製的投等 OAS 在 2026-11-30 前不會升破 1%（10/14 為 0.84%），即使 CCC 利差維持在 12% 以上",
+   "judge": "圖表庫自行重製的 ICE BofA 投等 OAS 序列，2026-11-30 前任一讀數 ≥1.00% 即為 miss；無對應觸發器，門檻為本期自訂，輔以 <code>hy80</code> state",
+   "deadline": "2026-11-30",
+   "status": "open"
+  },
+  {
+   "id": "c012-2",
+   "opened": "2026-10-19",
+   "issue": 12,
+   "kind": "divergence",
+   "claim": "核心加速但總體還翻不過 4%：cpi4 在 asof 更新到 2026-10-01 時仍為 0（現 3.7%）",
+   "judge": "<code>cpi4</code> 在 asof 2026-10-01 讀數的 state；翻為 1 即為 miss；2026-11-30 前 asof 未前進則 expired",
+   "deadline": "2026-11-30",
+   "status": "open"
+  },
+  {
+   "id": "c012-3",
+   "opened": "2026-10-19",
+   "issue": 12,
+   "kind": "watch",
+   "claim": "台股熱度與槓桿脫鉤：twheat 在 2026-11-30 前不會回到 44.2 以上（現 39.5），即使 tw_margin 20 日變化維持正值",
+   "judge": "監控庫 <code>twheat</code> 的值；2026-11-30 前任一讀數 >44.2 即為 miss；無對應觸發器，門檻為第 011 期讀數",
    "deadline": "2026-11-30",
    "status": "open"
   }
