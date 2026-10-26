@@ -354,6 +354,26 @@
    "judge": "監控庫 <code>twheat</code> 的值；2026-11-30 前任一讀數 >44.2 即為 miss；無對應觸發器，門檻為第 011 期讀數",
    "deadline": "2026-11-30",
    "status": "open"
+  },
+  {
+   "id": "c013-1",
+   "opened": "2026-10-26",
+   "issue": 13,
+   "kind": "divergence",
+   "claim": "美債 10 年期讓出 5% 之後，11 月底前拿不回來：y10_5 在 2026-11-30 前不會由 0 翻回 1（現 4.96%），因為下修的是前端、債市在拿掉升息而不是在避險",
+   "judge": "<code>y10_5</code> state；2026-11-30 前任一讀數翻為 1 即為 miss",
+   "deadline": "2026-11-30",
+   "status": "open"
+  },
+  {
+   "id": "c013-2",
+   "opened": "2026-10-26",
+   "issue": 13,
+   "kind": "verdict",
+   "claim": "12/09 FOMC 不升息：聯邦基金利率在 2026 年底仍為 3.75%，即使新聞側 12/09 前累計升息機率約 75%",
+   "judge": "<code>policy_gap</code> 在 asof 2027-01-01 讀數的 FF 是否仍為 3.75%；高於 3.75% 即為 miss；2027-01-31 前 asof 未前進則 expired",
+   "deadline": "2027-01-31",
+   "status": "open"
   }
  ]
 }
