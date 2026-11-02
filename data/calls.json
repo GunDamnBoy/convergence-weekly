@@ -44,7 +44,10 @@
    "claim": "五大雲廠 Capex／營運現金流在 2026Q3 財報揭露後不會低於 75%（現 81.8%），節目側的自由現金流拐點論不成立",
    "judge": "監控庫 <code>capexocf</code> 欄位在 2026Q3 更新後的值是否 <75%",
    "deadline": "2026-11-30",
-   "status": "open"
+   "status": "hit",
+   "closed": "2026-11-02",
+   "closedIssue": 14,
+   "closeNote": "2026Q3 財報進表後 capexocf 為 95.5%（asof 2026Q3），遠高於 75%；節目側的自由現金流拐點論在這個欄位上不成立——拐點的方向是反的，現金流更緊。"
   },
   {
    "id": "c003-5",
@@ -116,7 +119,10 @@
    "claim": "<code>l3</code> 本期的停滯是資料問題不是現實問題：<code>dnagap</code> 的 asof 在 2026Q3 財報揭露後會離開 2026Q2，且屆時 <code>dnagap</code> 不會收窄到 +30pp 以下",
    "judge": "監控庫 <code>dnagap</code> 的 asof 與值；本欄位無對應觸發器，門檻為本期自訂",
    "deadline": "2026-11-30",
-   "status": "open"
+   "status": "hit",
+   "closed": "2026-11-02",
+   "closedIssue": 14,
+   "closeNote": "dnagap 的 asof 已由 2026Q2 前進到 2026Q3，值 +39.1pp，沒有收窄到 +30pp 以下；l3 八期停滯確實是資料未更新，本期一更新就動了 8.4 分。"
   },
   {
    "id": "c005-3",
@@ -139,7 +145,10 @@
    "claim": "半導體價格層是甩尾不是熄火：<code>gsy150</code> 的 value 在期限內不會跌破 +100%（現 +123%），且 <code>volchg</code> 不會回落到 +3pp 以下（現 +6.0pp）",
    "judge": "監控庫 <code>gsy150</code> 的 value 與 <code>volchg</code> 的值；<code>gsy150</code> 的 state 在期限內不翻轉為 1 也不構成 miss，門檻為本期自訂",
    "deadline": "2026-10-31",
-   "status": "open"
+   "status": "hit",
+   "closed": "2026-11-02",
+   "closedIssue": 14,
+   "closeNote": "期限 10/31 前最後讀數 gsy150 value +105%（asof 10-30）、volchg +8.8pp，兩個地板（+100%、+3pp）都守住；費半 10/30 單日跌 7.18% 也沒有擊穿。"
   },
   {
    "id": "c006-2",
@@ -198,7 +207,10 @@
    "claim": "台股熱度的退勢會延續：<code>twheat</code> 在 2026-10-31 前不會回到 48.7 之上（現 44.3），因為指數層級沒有第二個引擎——台積電仍在 7/31 基期以下、<code>odm_pe</code> 只有 13.3×",
    "judge": "監控庫 <code>twheat</code> 的值（無對應觸發器，門檻沿用 c003-5 的同一條 48.7 基準線以利對照）",
    "deadline": "2026-10-31",
-   "status": "open"
+   "status": "hit",
+   "closed": "2026-11-02",
+   "closedIssue": 14,
+   "closeNote": "twheat 在期限前一路由 44.3 退到 34.2，未曾回到 48.7 之上。"
   },
   {
    "id": "c008-1",
@@ -247,7 +259,10 @@
    "claim": "台股熱度 twheat 在 2026-10-31 前不會回到 48.7 之上",
    "judge": "監控庫 <code>twheat</code> 欄位是否高於 48.7",
    "deadline": "2026-10-31",
-   "status": "open"
+   "status": "hit",
+   "closed": "2026-11-02",
+   "closedIssue": 14,
+   "closeNote": "同 c007-3：twheat 到 10/31 前最高讀數仍遠低於 48.7，最新 34.2。"
   },
   {
    "id": "c009-1",
@@ -257,7 +272,10 @@
    "claim": "美債 10 年期在 2026-10-31 仍維持在 5% 之上：壓力在實質利率與前端，不會因油價回落而自己解除，y10_5 到期時仍為 1",
    "judge": "<code>y10_5</code> 在 2026-10-31 的 state 是否仍為 1；翻回 0 即為 miss",
    "deadline": "2026-10-31",
-   "status": "open"
+   "status": "miss",
+   "closed": "2026-11-02",
+   "closedIssue": 14,
+   "closeNote": "y10_5 自 10/22 熄燈後 4.96%→4.98%（asof 10-29），到期時 state 為 0；押 10/31 仍 ≥5% 落空。壓力確實在前端，但前端在 FOMC 前後是往下修，不是撐住長端。"
   },
   {
    "id": "c009-2",
@@ -373,6 +391,26 @@
    "claim": "12/09 FOMC 不升息：聯邦基金利率在 2026 年底仍為 3.75%，即使新聞側 12/09 前累計升息機率約 75%",
    "judge": "<code>policy_gap</code> 在 asof 2027-01-01 讀數的 FF 是否仍為 3.75%；高於 3.75% 即為 miss；2027-01-31 前 asof 未前進則 expired",
    "deadline": "2027-01-31",
+   "status": "open"
+  },
+  {
+   "id": "c014-1",
+   "opened": "2026-11-02",
+   "issue": 14,
+   "kind": "watch",
+   "claim": "最底層的融資窗口今年不會重開：ccc12 在 2026-12-31 前不會熄燈（現 13.25%），即使 hy80 維持 0",
+   "judge": "<code>ccc12</code> state；2026-12-31 前任一讀數由 1 翻為 0 即為 miss",
+   "deadline": "2026-12-31",
+   "status": "open"
+  },
+  {
+   "id": "c014-2",
+   "opened": "2026-11-02",
+   "issue": 14,
+   "kind": "divergence",
+   "claim": "台股槓桿的下一步是去化：tw_margin 的 20 日變化在 2026-11-30 前轉為負值（現 +0.8%）",
+   "judge": "監控庫 <code>tw_margin</code> 的 20 日變化；2026-11-30 前任一讀數 <0 即為 hit，否則 miss；無對應觸發器，門檻為本期自訂",
+   "deadline": "2026-11-30",
    "status": "open"
   }
  ]
