@@ -308,7 +308,10 @@
    "claim": "勞動市場是停滯不是轉折：sahm05 在 asof 更新到 2026-10-01 的讀數時仍為 0（現 +0.00pp）",
    "judge": "<code>sahm05</code> 在 asof 2026-10-01 讀數的 state；翻為 1 即為 miss；2026-11-15 前 asof 未前進則 expired",
    "deadline": "2026-11-15",
-   "status": "open"
+   "status": "hit",
+   "closed": "2026-11-09",
+   "closedIssue": 15,
+   "closeNote": "sahm05 asof 前進到 2026-10-01，值 +0.00pp、state 0；10 月非農 +16.5 萬、失業率 4.1%，勞動市場是停滯後再加速，不是轉折。"
   },
   {
    "id": "c010-3",
@@ -410,6 +413,29 @@
    "kind": "divergence",
    "claim": "台股槓桿的下一步是去化：tw_margin 的 20 日變化在 2026-11-30 前轉為負值（現 +0.8%）",
    "judge": "監控庫 <code>tw_margin</code> 的 20 日變化；2026-11-30 前任一讀數 <0 即為 hit，否則 miss；無對應觸發器，門檻為本期自訂",
+   "deadline": "2026-11-30",
+   "status": "hit",
+   "closed": "2026-11-09",
+   "closedIssue": 15,
+   "closeNote": "tw_margin 20 日變化由 +0.8%（asof 10-30）轉為 -16.2%（asof 11-06），融資餘額 534 十億元；去槓桿一週內以斷頭的形式發生。"
+  },
+  {
+   "id": "c015-1",
+   "opened": "2026-11-09",
+   "issue": 15,
+   "kind": "divergence",
+   "claim": "敘事說 AI 泡沫在破，監控總分不會確認：composite 在 2026-11-30 前不跌破 55（現 61.5）",
+   "judge": "監控庫 <code>composite</code>；2026-11-30 前任一讀數 <55 即為 miss；無對應觸發器，門檻為本期自訂",
+   "deadline": "2026-11-30",
+   "status": "open"
+  },
+  {
+   "id": "c015-2",
+   "opened": "2026-11-09",
+   "issue": 15,
+   "kind": "watch",
+   "claim": "台股去槓桿還沒走完：tw_margin 20 日變化在 2026-11-30 前的最後一筆讀數仍為負值（現 -16.2%）",
+   "judge": "監控庫 <code>tw_margin</code> 的 20 日變化；2026-11-30 前最後一筆讀數 ≥0 即為 miss；無對應觸發器，門檻為本期自訂",
    "deadline": "2026-11-30",
    "status": "open"
   }
